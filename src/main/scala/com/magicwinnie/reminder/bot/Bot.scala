@@ -20,4 +20,13 @@ class Bot[F[_]: Async](token: String)
     reply("Привет!\nЭто бот для создания напоминаний.\nВведи /create, чтобы начать").void
   }
 
+  override def startPolling(): F[Unit] = {
+    logger.info("Telegram Bot has started polling ")
+    super.startPolling()
+  }
+
+  override def shutdown(): Unit = {
+    logger.info("Telegram Bot has stopped")
+    super.shutdown()
+  }
 }
