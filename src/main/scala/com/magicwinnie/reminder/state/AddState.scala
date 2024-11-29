@@ -1,6 +1,5 @@
 package com.magicwinnie.reminder.state
 
-object AddState extends Enumeration {
-  type AddState = Value
-  val Name, Date, Repeat = Value
-}
+import com.github.nscala_time.time.Imports.{DateTime, Period}
+
+sealed case class AddState(name: Option[String], executeAt: Option[DateTime], repeatIn: Option[Period])
