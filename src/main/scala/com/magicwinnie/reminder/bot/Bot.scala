@@ -1,7 +1,7 @@
 package com.magicwinnie.reminder.bot
 
 import cats.effect.Async
-import cats.syntax.functor._
+import cats.syntax.all._
 import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
 import com.bot4s.telegram.cats.{Polling, TelegramBot}
 import com.bot4s.telegram.models.Message
@@ -45,9 +45,14 @@ class Bot[F[_]: Async](token: String)
   onCommand("/inc") { implicit msg =>
     withChatState { s =>
       val prevAddState = s.getOrElse(AddState(None, None, None))
-      val newAddState = AddState(Some("234"), None, None)
-      setChatState(newAddState)
-      reply(s"Counter: ${prevAddState.name}").void
+      val newAddState = prevAddState.name match {
+        case None => AddState(Some("234"), None, None)
+        case Some(_) => prevAddState
+      }
+      for {
+        _ <- setChatState[F](newAddState)
+        _ <- reply(s"Counter: ${prevAddState.name.getOrElse("None")}")
+      } yield ()
     }
   }
 

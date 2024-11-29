@@ -7,9 +7,9 @@ trait PerChatState[S] {
   private val chatState = collection.mutable.Map[Long, S]()
 
   def setChatState[F[_]: Async](value: S)(implicit msg: Message): F[Unit] = {
-    Async[F].blocking {
+    Async[F].delay {
       chatState.synchronized {
-        chatState.update(msg.chat.id, value)
+        chatState(msg.chat.id) = value
       }
     }
   }
