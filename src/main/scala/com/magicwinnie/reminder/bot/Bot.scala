@@ -43,20 +43,6 @@ class Bot[F[_]: Async](token: String)
     reply("Введи название нового напоминания", replyToMessageId = Option(msg.messageId)).void
   }
 
-  onCommand("/inc") { implicit msg =>
-    withChatState { s =>
-      val prevAddState = s.getOrElse(AddState(None, None, None))
-      val newAddState = prevAddState.name match {
-        case None    => AddState(Some("234"), None, None)
-        case Some(_) => prevAddState
-      }
-      for {
-        _ <- setChatState[F](newAddState)
-        _ <- reply(s"Counter: ${prevAddState.name.getOrElse("None")}")
-      } yield ()
-    }
-  }
-
   def processState(implicit msg: Message): F[Unit] = {
     withChatState[F] { _ =>
       val newAddState = AddState(msg.text, None, None)
@@ -74,20 +60,28 @@ class Bot[F[_]: Async](token: String)
           if (prevAddState.name.isEmpty) {
             val newAddState = AddState(Some(text), None, None)
             setChatState(newAddState) >>
-              reply("Введи теперь дату в формате HH:MM DD.MM.YYYY").void
+              reply("Введи теперь дату в формате HH:MM DD.MM.YYYY", replyToMessageId = Option(msg.messageId)).void
           } else if (prevAddState.executeAt.isEmpty) {
             val executeAt = parseDateTime(text)
             if (executeAt.isEmpty) {
-              reply("Введи теперь дату в формате HH:MM DD.MM.YYYY").void
+              reply("Введи теперь дату в формате HH:MM DD.MM.YYYY", replyToMessageId = Option(msg.messageId)).void
             } else {
               val newAddState = AddState(prevAddState.name, executeAt, None)
               setChatState(newAddState) >>
-                reply("Введи через сколько дней повторять это напоминание").void
+                reply(
+                  "Введи через сколько дней повторять это напоминание",
+                  replyToMessageId = Option(msg.messageId)
+                ).void
             }
           } else {
             val newAddState = AddState(prevAddState.name, prevAddState.executeAt, Some(Period.days(text.toInt)))
             setChatState(newAddState) >>
-              reply(newAddState.toString).void
+              reply(
+                s"Мы сохранили напоминание с названием \"${newAddState.name.getOrElse("")}\"," +
+                  s" который исполнится в ${newAddState.executeAt.getOrElse("")} с периодом в" +
+                  s" ${text.toInt} дня",
+                replyToMessageId = Option(msg.messageId)
+              ).void
           }
         }
       case _ => Async[F].unit
