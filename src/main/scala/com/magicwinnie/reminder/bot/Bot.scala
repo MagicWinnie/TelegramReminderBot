@@ -17,7 +17,19 @@ class Bot[F[_]: Async](token: String)
   LoggerConfig.level = LogLevel.TRACE
 
   onCommand("start") { implicit msg =>
-    reply("Привет!\nЭто бот для создания напоминаний.\nВведи /create, чтобы начать").void
+    reply(
+      "Привет!\n" +
+        "Это бот для создания напоминаний.\n" +
+        "Введи /help, чтобы увидеть доступные команды"
+    ).void
+  }
+
+  onCommand("help") { implicit msg =>
+    reply(
+      "Доступные команды:\n" +
+        "/start - Приветственное сообщение\n" +
+        "/help - Показать это сообщение"
+    ).void
   }
 
   override def startPolling(): F[Unit] = {
