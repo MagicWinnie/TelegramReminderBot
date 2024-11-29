@@ -5,6 +5,7 @@ import cats.syntax.all._
 import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
 import com.bot4s.telegram.cats.{Polling, TelegramBot}
 import com.bot4s.telegram.models.Message
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
 import com.magicwinnie.reminder.state.{AddState, PerChatState}
 import org.asynchttpclient.Dsl.asyncHttpClient
 import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
@@ -46,7 +47,7 @@ class Bot[F[_]: Async](token: String)
     withChatState { s =>
       val prevAddState = s.getOrElse(AddState(None, None, None))
       val newAddState = prevAddState.name match {
-        case None => AddState(Some("234"), None, None)
+        case None    => AddState(Some("234"), None, None)
         case Some(_) => prevAddState
       }
       for {
@@ -64,26 +65,45 @@ class Bot[F[_]: Async](token: String)
   }
 
   override def receiveMessage(msg: Message): F[Unit] = {
-//    msg.text match {
-//      case Some(text) =>
-//        if (!text.startsWith("/")) {
-//          withChatState { s =>
-//            val prevAddState = s.getOrElse(AddState(None, None, None))
-//            if (prevAddState.name.isEmpty) {
-//              val newAddState = AddState(Some(text), None, None)
-//              setChatState(newAddState)(msg)
-//            } else if (prevAddState.executeAt.isEmpty) {
-//              val newAddState = AddState(prevAddState.name, Some(text), None)
-//              setChatState(newAddState)(msg)
-//            } else {
-//              val newAddState = AddState(prevAddState.name, Some(text), None)
-//              setChatState(newAddState)(msg)
-//            }
-//          }(msg)
-//        }
-//      case None => ()
-//    }
-    super.receiveMessage(msg)
+    implicit val implicitMessage: Message = msg
+
+    val action = msg.text match {
+      case Some(text) if !text.startsWith("/") =>
+        withChatState { s =>
+          val prevAddState = s.getOrElse(AddState(None, None, None))
+          if (prevAddState.name.isEmpty) {
+            val newAddState = AddState(Some(text), None, None)
+            setChatState(newAddState) >>
+              reply("Введи теперь дату в формате HH:MM DD.MM.YYYY").void
+          } else if (prevAddState.executeAt.isEmpty) {
+            val executeAt = parseDateTime(text)
+            if (executeAt.isEmpty) {
+              reply("Введи теперь дату в формате HH:MM DD.MM.YYYY").void
+            } else {
+              val newAddState = AddState(prevAddState.name, executeAt, None)
+              setChatState(newAddState) >>
+                reply("Введи через сколько дней повторять это напоминание").void
+            }
+          } else {
+            val newAddState = AddState(prevAddState.name, prevAddState.executeAt, Some(Period.days(text.toInt)))
+            setChatState(newAddState) >>
+              reply(newAddState.toString).void
+          }
+        }
+      case _ => Async[F].unit
+    }
+
+    action >> super.receiveMessage(msg)
+  }
+
+  private def parseDateTime(dateString: String): Option[DateTime] = {
+    try {
+      val dateTimeFormatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy")
+      Some(dateTimeFormatter.parseDateTime(dateString))
+    } catch {
+      case _: IllegalArgumentException =>
+        None
+    }
   }
 
   override def startPolling(): F[Unit] = {
