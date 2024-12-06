@@ -84,7 +84,10 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
                 .catchOnly[NumberFormatException](daysStr.toInt)
                 .toOption
                 .fold(
-                  reply("Пожалуйста, введи корректное число дней", replyToMessageId = Option(msg.messageId)).void
+                  reply(
+                    "Пожалуйста, введи корректное число дней",
+                    replyToMessageId = Option(msg.messageId)
+                  ).void
                 ) { days =>
                   val newAddState = prevAddState.copy(repeatIn = Some(Period.days(days)))
                   perChatState.setChatState(newAddState) >>
