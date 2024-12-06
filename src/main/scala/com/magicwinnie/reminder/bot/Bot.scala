@@ -58,16 +58,25 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
             case (AddState(None, None, None), reminderName) =>
               val newAddState = prevAddState.copy(name = Some(reminderName))
               perChatState.setChatState(newAddState) >>
-                reply("Введи теперь дату в формате HH:MM DD.MM.YYYY").void
+                reply(
+                  "Введи теперь дату в формате HH:MM DD.MM.YYYY",
+                  replyToMessageId = Option(msg.messageId)
+                ).void
 
             case (AddState(Some(_), None, None), dateStr) =>
               parseDateTime(dateStr) match {
                 case Some(executeAt) =>
                   val newAddState = prevAddState.copy(executeAt = Some(executeAt))
                   perChatState.setChatState(newAddState) >>
-                    reply("Введи через сколько дней повторять это напоминание").void
+                    reply(
+                      "Введи через сколько дней повторять это напоминание",
+                      replyToMessageId = Option(msg.messageId)
+                    ).void
                 case None =>
-                  reply("Неверный формат даты. Введи дату в формате HH:MM DD.MM.YYYY").void
+                  reply(
+                    "Неверный формат даты. Введи дату в формате HH:MM DD.MM.YYYY",
+                    replyToMessageId = Option(msg.messageId)
+                  ).void
               }
 
             case (AddState(Some(name), Some(executeAt), None), daysStr) =>
@@ -75,14 +84,15 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
                 .catchOnly[NumberFormatException](daysStr.toInt)
                 .toOption
                 .fold(
-                  reply("Пожалуйста, введи корректное число дней").void
+                  reply("Пожалуйста, введи корректное число дней", replyToMessageId = Option(msg.messageId)).void
                 ) { days =>
                   val newAddState = prevAddState.copy(repeatIn = Some(Period.days(days)))
                   perChatState.setChatState(newAddState) >>
                     reply(
                       s"Мы сохранили напоминание с названием \"$name\", " +
                         s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} " +
-                        s"с периодом в $days дня(ей)"
+                        s"с периодом в $days дня(ей)",
+                      replyToMessageId = Option(msg.messageId)
                     ).void
                 }
 
