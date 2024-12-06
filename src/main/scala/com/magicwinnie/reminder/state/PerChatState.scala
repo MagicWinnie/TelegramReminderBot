@@ -1,32 +1,28 @@
 package com.magicwinnie.reminder.state
 
-import cats.effect.Async
+import cats.effect.Concurrent
+import cats.effect.Ref
+import cats.syntax.all._
 import com.bot4s.telegram.models.Message
 
-trait PerChatState[S] {
-  private val chatState = collection.mutable.Map[Long, S]()
+trait PerChatState[F[_], S] {
+  def setChatState(value: S)(implicit msg: Message): F[Unit]
+  def clearChatState(implicit msg: Message): F[Unit]
+  def withChatState(action: Option[S] => F[Unit])(implicit msg: Message): F[Unit]
+}
 
-  def setChatState[F[_]: Async](value: S)(implicit msg: Message): F[Unit] = {
-    Async[F].delay {
-      chatState.synchronized {
-        chatState(msg.chat.id) = value
+object PerChatState {
+  def create[F[_]: Concurrent, S]: F[PerChatState[F, S]] =
+    Ref.of[F, Map[Long, S]](Map.empty).map { ref =>
+      new PerChatState[F, S] {
+        override def setChatState(value: S)(implicit msg: Message): F[Unit] =
+          ref.update(_.updated(msg.chat.id, value))
+
+        override def clearChatState(implicit msg: Message): F[Unit] =
+          ref.update(_ - msg.chat.id)
+
+        override def withChatState(action: Option[S] => F[Unit])(implicit msg: Message): F[Unit] =
+          ref.get.map(_.get(msg.chat.id)).flatMap(action)
       }
-    }
-  }
-
-  def clearChatState(implicit msg: Message): Unit = atomic {
-    chatState.remove(msg.chat.id)
-    ()
-  }
-
-  private def atomic[T](f: => T): T = chatState.synchronized {
-    f
-  }
-
-  def withChatState[F[_]](f: Option[S] => F[Unit])(implicit msg: Message): F[Unit] = f(getChatState)
-
-  private def getChatState(implicit msg: Message): Option[S] =
-    atomic {
-      chatState.get(msg.chat.id)
     }
 }

@@ -3,7 +3,8 @@ package com.magicwinnie.reminder.bot
 import cats.effect.Async
 import cats.syntax.all._
 import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
-import com.bot4s.telegram.cats.{Polling, TelegramBot}
+import com.bot4s.telegram.cats.Polling
+import com.bot4s.telegram.cats.TelegramBot
 import com.bot4s.telegram.models.Message
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
 import com.magicwinnie.reminder.state.{AddState, PerChatState}
@@ -11,16 +12,17 @@ import org.asynchttpclient.Dsl.asyncHttpClient
 import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
-class Bot[F[_]: Async](token: String)
+class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
   extends TelegramBot[F](token, AsyncHttpClientCatsBackend.usingClient[F](asyncHttpClient()))
   with Polling[F]
   with Commands[F]
-  with Callbacks[F]
-  with PerChatState[AddState] {
+  with Callbacks[F] {
 
+  // Initialize Logging
   LoggerConfig.factory = PrintLoggerFactory()
   LoggerConfig.level = LogLevel.TRACE
 
+  // Define bot commands
   onCommand("start") { implicit msg =>
     reply(
       "Привет!\n" +
@@ -40,14 +42,8 @@ class Bot[F[_]: Async](token: String)
   }
 
   onCommand("add") { implicit msg =>
-    reply("Введи название нового напоминания", replyToMessageId = Option(msg.messageId)).void
-  }
-
-  def processState(implicit msg: Message): F[Unit] = {
-    withChatState[F] { _ =>
-      val newAddState = AddState(msg.text, None, None)
-      setChatState(newAddState)
-    }
+    reply("Введи название нового напоминания", replyToMessageId = Some(msg.messageId)).void >>
+      perChatState.clearChatState // Clear any existing state when starting a new reminder
   }
 
   override def receiveMessage(msg: Message): F[Unit] = {
@@ -55,33 +51,43 @@ class Bot[F[_]: Async](token: String)
 
     val action = msg.text match {
       case Some(text) if !text.startsWith("/") =>
-        withChatState { s =>
-          val prevAddState = s.getOrElse(AddState(None, None, None))
-          if (prevAddState.name.isEmpty) {
-            val newAddState = AddState(Some(text), None, None)
-            setChatState(newAddState) >>
-              reply("Введи теперь дату в формате HH:MM DD.MM.YYYY", replyToMessageId = Option(msg.messageId)).void
-          } else if (prevAddState.executeAt.isEmpty) {
-            val executeAt = parseDateTime(text)
-            if (executeAt.isEmpty) {
-              reply("Введи теперь дату в формате HH:MM DD.MM.YYYY", replyToMessageId = Option(msg.messageId)).void
-            } else {
-              val newAddState = AddState(prevAddState.name, executeAt, None)
-              setChatState(newAddState) >>
-                reply(
-                  "Введи через сколько дней повторять это напоминание",
-                  replyToMessageId = Option(msg.messageId)
-                ).void
-            }
-          } else {
-            val newAddState = AddState(prevAddState.name, prevAddState.executeAt, Some(Period.days(text.toInt)))
-            setChatState(newAddState) >>
-              reply(
-                s"Мы сохранили напоминание с названием \"${newAddState.name.getOrElse("")}\"," +
-                  s" который исполнится в ${newAddState.executeAt.getOrElse("")} с периодом в" +
-                  s" ${text.toInt} дня",
-                replyToMessageId = Option(msg.messageId)
-              ).void
+        perChatState.withChatState { s =>
+          val prevAddState = s.getOrElse(AddState.empty)
+
+          (prevAddState, text) match {
+            case (AddState(None, None, None), reminderName) =>
+              val newAddState = prevAddState.copy(name = Some(reminderName))
+              perChatState.setChatState(newAddState) >>
+                reply("Введи теперь дату в формате HH:MM DD.MM.YYYY").void
+
+            case (AddState(Some(_), None, None), dateStr) =>
+              parseDateTime(dateStr) match {
+                case Some(executeAt) =>
+                  val newAddState = prevAddState.copy(executeAt = Some(executeAt))
+                  perChatState.setChatState(newAddState) >>
+                    reply("Введи через сколько дней повторять это напоминание").void
+                case None =>
+                  reply("Неверный формат даты. Введи дату в формате HH:MM DD.MM.YYYY").void
+              }
+
+            case (AddState(Some(name), Some(executeAt), None), daysStr) =>
+              Either
+                .catchOnly[NumberFormatException](daysStr.toInt)
+                .toOption
+                .fold(
+                  reply("Пожалуйста, введи корректное число дней").void
+                ) { days =>
+                  val newAddState = prevAddState.copy(repeatIn = Some(Period.days(days)))
+                  perChatState.setChatState(newAddState) >>
+                    reply(
+                      s"Мы сохранили напоминание с названием \"$name\", " +
+                        s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} " +
+                        s"с периодом в $days дня(ей)"
+                    ).void
+                }
+
+            case (_, _) =>
+              Async[F].unit
           }
         }
       case _ => Async[F].unit
@@ -91,13 +97,10 @@ class Bot[F[_]: Async](token: String)
   }
 
   private def parseDateTime(dateString: String): Option[DateTime] = {
-    try {
-      val dateTimeFormatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy")
-      Some(dateTimeFormatter.parseDateTime(dateString))
-    } catch {
-      case _: IllegalArgumentException =>
-        None
-    }
+    val dateTimeFormatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy")
+    Either
+      .catchNonFatal(dateTimeFormatter.parseDateTime(dateString))
+      .toOption
   }
 
   override def startPolling(): F[Unit] = {
