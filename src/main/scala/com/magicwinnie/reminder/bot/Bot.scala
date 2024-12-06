@@ -41,6 +41,10 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
     ).void
   }
 
+  onCommand("list") { implicit msg =>
+    reply("Команда находится в разработке", replyToMessageId = Some(msg.messageId)).void
+  }
+
   onCommand("add") { implicit msg =>
     reply("Введи название нового напоминания", replyToMessageId = Some(msg.messageId)).void >>
       perChatState.clearChatState // Clear any existing state when starting a new reminder
