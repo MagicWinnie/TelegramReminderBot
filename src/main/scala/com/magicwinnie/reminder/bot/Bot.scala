@@ -93,6 +93,7 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, UserState])
     parseRepeatInterval(text) match {
       case Right(days) =>
         // TODO: save to DB
+        logger.info(s"Saving notification: $name, ${executeAt.toString("HH:mm dd.MM.yyyy")}, ${days.getDays}")
         reply(
           s"Мы сохранили напоминание с названием \"$name\", " +
             s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} " +
