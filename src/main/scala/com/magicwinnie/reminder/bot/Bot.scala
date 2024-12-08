@@ -49,7 +49,7 @@ class Bot[F[_]: Async](
       reminders <- reminderRepository.getRemindersForChat(chatId)
       _ <-
         if (reminders.isEmpty)
-          reply("Нет напоминаний.", replyToMessageId = Some(msg.messageId))
+          reply("Нет напоминаний", replyToMessageId = Some(msg.messageId))
         else
           sendReminderPage(chatId, reminders, 0, None)
     } yield ()
@@ -148,7 +148,7 @@ class Bot[F[_]: Async](
         handleDeleteReminder(data)
       // TODO: add "edit:"
       case _ =>
-        ackCallback(Some("Некорректный запрос.")).void
+        ackCallback(Some("Некорректный запрос")).void
     }
   }
 
@@ -158,7 +158,7 @@ class Bot[F[_]: Async](
         ackCallback(Some("Что хочешь сделать?")).void *>
           sendReminderAction(chatId.toLong, reminderId, Some(cbq.message.get.messageId)) // TODO: fix unsafe .get
       case _ =>
-        ackCallback(Some("Некорректный формат данных.")).void
+        ackCallback(Some("Некорректный формат данных")).void
     }
   }
 
@@ -180,10 +180,10 @@ class Bot[F[_]: Async](
                 ) // TODO: fix unsafe .get
               }
           case None =>
-            ackCallback(Some("Некорректный формат данных.")).void
+            ackCallback(Some("Некорректный формат данных")).void
         }
       case _ =>
-        ackCallback(Some("Некорректный формат данных.")).void
+        ackCallback(Some("Некорректный формат данных")).void
     }
   }
 
@@ -195,22 +195,22 @@ class Bot[F[_]: Async](
           val objectId = new ObjectId(reminderId)
           for {
             _ <- reminderRepository.deleteReminder(objectId)
-            _ <- ackCallback(Some("Напоминание удалено."))
+            _ <- ackCallback(Some("Напоминание удалено"))
             _ <- cbq.message.traverse(msg =>
               request(
                 EditMessageText(
                   chatId = Some(ChatId(msg.chat.id)),
                   messageId = Some(msg.messageId),
-                  text = "Напоминание удалено."
+                  text = "Напоминание удалено"
                 )
               )
             )
           } yield ()
         } else {
-          ackCallback(Some("Неверный формат ID напоминания.")).void
+          ackCallback(Some("Неверный формат ID напоминания")).void
         }
       case _ =>
-        ackCallback(Some("Некорректный формат данных.")).void
+        ackCallback(Some("Некорректный формат данных")).void
     }
   }
 
@@ -296,17 +296,17 @@ class Bot[F[_]: Async](
 
   private def parseDateTime(dateString: String): Either[String, DateTime] = {
     val formatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy")
-    Either.catchNonFatal(DateTime.parse(dateString, formatter)).left.map(_ => "Используй формат HH:MM DD.MM.YYYY.")
+    Either.catchNonFatal(DateTime.parse(dateString, formatter)).left.map(_ => "Используй формат HH:MM DD.MM.YYYY")
   }
 
   private def parseRepeatInterval(daysStr: String): Either[String, Period] = {
     Either
       .catchOnly[NumberFormatException](daysStr.toInt)
       .left
-      .map(_ => "Введи корректное число дней.")
+      .map(_ => "Введи корректное число дней")
       .flatMap { days =>
         if (days >= 0) Right(Period.days(days))
-        else Left("Число должно быть положительным.")
+        else Left("Число должно быть положительным")
       }
   }
 
