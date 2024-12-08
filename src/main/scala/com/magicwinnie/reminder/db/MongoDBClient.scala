@@ -6,8 +6,8 @@ import org.mongodb.scala.{MongoClient, MongoCollection}
 
 import scala.reflect.ClassTag
 
-object MongoDBClient {
-  private val client = MongoClient()
+class MongoDBClient(val uri: String) {
+  private val client = MongoClient(uri)
 
   private val codecRegistry = fromRegistries(
     fromCodecs(NscalaTimeCodecs.dateTimeCodec, NscalaTimeCodecs.periodCodec),

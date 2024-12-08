@@ -16,13 +16,13 @@ object Main extends IOApp {
 
   def run(args: List[String]): IO[ExitCode] = {
     args match {
-      case List(token) =>
-        val collection = MongoDBClient.getCollection[ReminderModel]("reminders")
+      case List(token, mongoUri) =>
+        val collection = new MongoDBClient(mongoUri).getCollection[ReminderModel]("reminders")
         makeBot[IO](token, collection).use { bot =>
           bot.startPolling().as(ExitCode.Success)
         }
       case _ =>
-        IO.raiseError(new Exception("Usage:\nMain $token"))
+        IO.raiseError(new Exception("Usage:\nMain $token $mongoURI"))
     }
   }
 }
