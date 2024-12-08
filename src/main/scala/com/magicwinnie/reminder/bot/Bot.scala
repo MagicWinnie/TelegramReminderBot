@@ -191,6 +191,7 @@ class Bot[F[_]: Async](
     data.split(":") match {
       case Array(_, reminderId, _) =>
         if (ObjectId.isValid(reminderId)) {
+          logger.info(s"Deleting reminder with id $reminderId")
           val objectId = new ObjectId(reminderId)
           for {
             _ <- reminderRepository.deleteReminder(objectId)
