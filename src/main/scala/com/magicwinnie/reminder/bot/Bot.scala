@@ -13,6 +13,7 @@ import org.asynchttpclient.Dsl.asyncHttpClient
 import org.bson.types.ObjectId
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
+import scala.util.Try
 
 class Bot[F[_]: Async](
   token: String,
@@ -144,26 +145,35 @@ class Bot[F[_]: Async](
         data.split(":") match {
           case Array(_, reminderId, chatId) =>
             ackCallback(Some("Что хочешь сделать?")).void *>
-              sendReminderAction(chatId.toLong, reminderId, Some(cbq.message.get.messageId))
+              sendReminderAction(chatId.toLong, reminderId, Some(cbq.message.get.messageId)) // TODO: fix unsafe .get
           case _ =>
             ackCallback(Some("Некорректный формат данных.")).void
         }
 
       // Handle page navigation
       case Some(data) if data.startsWith("page:") =>
-        // Extract the page index and chat ID
-        val parts = data.split(":")
-        if (parts.length == 3) {
-          val pageIndex = parts(1).toInt
-          val chatId = parts(2).toLong
-
-          ackCallback(Some("Переключение страницы...")).void *>
-            // Update the message with new reminders
-            reminderRepository.getRemindersForChat(chatId).flatMap { reminders =>
-              sendReminderPage(chatId, reminders, pageIndex, Some(cbq.message.get.messageId))
+        data.split(":") match {
+          case Array(_, pageIndexStr, chatIdStr) =>
+            (for {
+              pageIndex <- Try(pageIndexStr.toInt).toOption
+              chatId <- Try(chatIdStr.toLong).toOption
+            } yield (pageIndex, chatId)) match {
+              case Some((pageIndex, chatId)) =>
+                ackCallback(Some("Переключение страницы...")).void *>
+                  reminderRepository.getRemindersForChat(chatId).flatMap { reminders =>
+                    sendReminderPage(
+                      chatId,
+                      reminders,
+                      pageIndex,
+                      Some(cbq.message.get.messageId)
+                    ) // TODO: fix unsafe .get
+                  }
+              case None =>
+                ackCallback(Some("Некорректный формат данных.")).void
             }
-        } else {
-          ackCallback(Some("Некорректный формат данных.")).void
+
+          case _ =>
+            ackCallback(Some("Некорректный формат данных.")).void
         }
 
       // Handle delete of reminder
