@@ -6,12 +6,16 @@ import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
 import com.bot4s.telegram.cats.{Polling, TelegramBot}
 import com.bot4s.telegram.models.Message
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
+import com.magicwinnie.reminder.db.{ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
 import org.asynchttpclient.Dsl.asyncHttpClient
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
-class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, UserState])
-  extends TelegramBot[F](token, AsyncHttpClientCatsBackend.usingClient[F](asyncHttpClient()))
+class Bot[F[_]: Async](
+  token: String,
+  perChatState: PerChatState[F, UserState],
+  reminderRepository: ReminderRepository[F]
+) extends TelegramBot[F](token, AsyncHttpClientCatsBackend.usingClient[F](asyncHttpClient()))
   with Polling[F]
   with Commands[F]
   with Callbacks[F] {
@@ -92,14 +96,24 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, UserState])
   private def handleAwaitingRepeat(name: String, executeAt: DateTime, text: String)(implicit msg: Message): F[Unit] = {
     parseRepeatInterval(text) match {
       case Right(days) =>
-        // TODO: save to DB
         logger.info(s"Saving notification: $name, ${executeAt.toString("HH:mm dd.MM.yyyy")}, ${days.getDays}")
-        reply(
-          s"Мы сохранили напоминание с названием \"$name\", " +
-            s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} " +
-            s"с периодом в ${days.getDays} дня(ей)",
-          replyToMessageId = Some(msg.messageId)
-        ).void >>
+
+        val repeatPeriod = if (days.getDays > 0) Some(days) else None
+        val reminder = ReminderModel(
+          chatId = msg.chat.id,
+          name = name,
+          executeAt = executeAt,
+          repeatIn = repeatPeriod,
+          createdAt = DateTime.now()
+        )
+
+        reminderRepository.createReminder(reminder) >>
+          reply(
+            s"Мы сохранили напоминание с названием \"$name\", " +
+              s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} " +
+              s"${repeatPeriod.fold("")(p => s"с периодом в ${p.getDays} дня(ей)")}",
+            replyToMessageId = Some(msg.messageId)
+          ).void >>
           perChatState.clearChatState
       case Left(errorMsg) =>
         reply(
@@ -111,10 +125,7 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, UserState])
 
   private def parseDateTime(dateString: String): Either[String, DateTime] = {
     val formatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy")
-    Either
-      .catchNonFatal(DateTime.parse(dateString, formatter))
-      .left
-      .map(_ => "Используй формат HH:MM DD.MM.YYYY.")
+    Either.catchNonFatal(DateTime.parse(dateString, formatter)).left.map(_ => "Используй формат HH:MM DD.MM.YYYY.")
   }
 
   private def parseRepeatInterval(daysStr: String): Either[String, Period] = {
