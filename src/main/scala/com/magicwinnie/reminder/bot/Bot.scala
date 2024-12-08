@@ -7,7 +7,7 @@ import com.bot4s.telegram.cats.Polling
 import com.bot4s.telegram.cats.TelegramBot
 import com.bot4s.telegram.models.Message
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
-import com.magicwinnie.reminder.state.{UserState, PerChatState}
+import com.magicwinnie.reminder.state.{PerChatState, UserState}
 import org.asynchttpclient.Dsl.asyncHttpClient
 import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
@@ -47,77 +47,90 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, UserState])
 
   onCommand("add") { implicit msg =>
     reply("Введи название нового напоминания", replyToMessageId = Some(msg.messageId)).void >>
-      perChatState.clearChatState // Clear any existing state when starting a new reminder
+      perChatState.setChatState(UserState.AwaitingName)
   }
 
   override def receiveMessage(msg: Message): F[Unit] = {
     implicit val implicitMessage: Message = msg
 
-    val action = msg.text match {
+    (msg.text match {
       case Some(text) if !text.startsWith("/") =>
-        perChatState.withChatState { s =>
-          val prevAddState = s.getOrElse(UserState.empty)
-
-          (prevAddState, text) match {
-            case (UserState(None, None, None), reminderName) =>
-              val newAddState = prevAddState.copy(name = Some(reminderName))
-              perChatState.setChatState(newAddState) >>
-                reply(
-                  "Введи теперь дату в формате HH:MM DD.MM.YYYY",
-                  replyToMessageId = Option(msg.messageId)
-                ).void
-
-            case (UserState(Some(_), None, None), dateStr) =>
-              parseDateTime(dateStr) match {
-                case Some(executeAt) =>
-                  val newAddState = prevAddState.copy(executeAt = Some(executeAt))
-                  perChatState.setChatState(newAddState) >>
-                    reply(
-                      "Введи через сколько дней повторять это напоминание",
-                      replyToMessageId = Option(msg.messageId)
-                    ).void
-                case None =>
-                  reply(
-                    "Неверный формат даты. Введи дату в формате HH:MM DD.MM.YYYY",
-                    replyToMessageId = Option(msg.messageId)
-                  ).void
-              }
-
-            case (UserState(Some(name), Some(executeAt), None), daysStr) =>
-              Either
-                .catchOnly[NumberFormatException](daysStr.toInt)
-                .toOption
-                .fold(
-                  reply(
-                    "Пожалуйста, введи корректное число дней",
-                    replyToMessageId = Option(msg.messageId)
-                  ).void
-                ) { days =>
-                  val newAddState = prevAddState.copy(repeatIn = Some(Period.days(days)))
-                  perChatState.setChatState(newAddState) >>
-                    reply(
-                      s"Мы сохранили напоминание с названием \"$name\", " +
-                        s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} " +
-                        s"с периодом в $days дня(ей)",
-                      replyToMessageId = Option(msg.messageId)
-                    ).void
-                }
-
-            case (_, _) =>
-              Async[F].unit
-          }
+        perChatState.withChatState {
+          case Some(UserState.AwaitingName) =>
+            handleAwaitingName(text)
+          case Some(UserState.AwaitingDate(name)) =>
+            handleAwaitingDate(name, text)
+          case Some(UserState.AwaitingRepeat(name, executeAt)) =>
+            handleAwaitingRepeat(name, executeAt, text)
+          case _ =>
+            Async[F].unit
         }
-      case _ => Async[F].unit
-    }
 
-    action >> super.receiveMessage(msg)
+      case _ =>
+        Async[F].unit
+    }) >> super.receiveMessage(msg)
   }
 
-  private def parseDateTime(dateString: String): Option[DateTime] = {
-    val dateTimeFormatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy")
+  private def handleAwaitingName(text: String)(implicit msg: Message): F[Unit] = {
+    perChatState.setChatState(UserState.AwaitingDate(text)) >>
+      reply(
+        "Введи дату в формате HH:MM DD.MM.YYYY",
+        replyToMessageId = Some(msg.messageId)
+      ).void
+  }
+
+  private def handleAwaitingDate(name: String, text: String)(implicit msg: Message): F[Unit] = {
+    parseDateTime(text) match {
+      case Right(executeAt) =>
+        perChatState.setChatState(UserState.AwaitingRepeat(name, executeAt)) >>
+          reply(
+            "Введи через сколько дней повторять это напоминание",
+            replyToMessageId = Some(msg.messageId)
+          ).void
+      case Left(errorMsg) =>
+        reply(
+          s"Неверный формат даты. $errorMsg",
+          replyToMessageId = Some(msg.messageId)
+        ).void
+    }
+  }
+
+  private def handleAwaitingRepeat(name: String, executeAt: DateTime, text: String)(implicit msg: Message): F[Unit] = {
+    parseRepeatInterval(text) match {
+      case Right(days) =>
+        // TODO: save to DB
+        reply(
+          s"Мы сохранили напоминание с названием \"$name\", " +
+            s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} " +
+            s"с периодом в ${days.getDays} дня(ей)",
+          replyToMessageId = Some(msg.messageId)
+        ).void >>
+          perChatState.clearChatState
+      case Left(errorMsg) =>
+        reply(
+          s"Неверный формат периода. $errorMsg",
+          replyToMessageId = Some(msg.messageId)
+        ).void
+    }
+  }
+
+  private def parseDateTime(dateString: String): Either[String, DateTime] = {
+    val formatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy")
     Either
-      .catchNonFatal(dateTimeFormatter.parseDateTime(dateString))
-      .toOption
+      .catchNonFatal(DateTime.parse(dateString, formatter))
+      .left
+      .map(_ => "Используй формат HH:MM DD.MM.YYYY.")
+  }
+
+  private def parseRepeatInterval(daysStr: String): Either[String, Period] = {
+    Either
+      .catchOnly[NumberFormatException](daysStr.toInt)
+      .left
+      .map(_ => "Введи корректное число дней.")
+      .flatMap { days =>
+        if (days > 0) Right(Period.days(days))
+        else Left("Число должно быть положительным.")
+      }
   }
 
   override def startPolling(): F[Unit] = {
