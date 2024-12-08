@@ -7,12 +7,12 @@ import com.bot4s.telegram.cats.Polling
 import com.bot4s.telegram.cats.TelegramBot
 import com.bot4s.telegram.models.Message
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
-import com.magicwinnie.reminder.state.{AddState, PerChatState}
+import com.magicwinnie.reminder.state.{UserState, PerChatState}
 import org.asynchttpclient.Dsl.asyncHttpClient
 import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
-class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
+class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, UserState])
   extends TelegramBot[F](token, AsyncHttpClientCatsBackend.usingClient[F](asyncHttpClient()))
   with Polling[F]
   with Commands[F]
@@ -56,10 +56,10 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
     val action = msg.text match {
       case Some(text) if !text.startsWith("/") =>
         perChatState.withChatState { s =>
-          val prevAddState = s.getOrElse(AddState.empty)
+          val prevAddState = s.getOrElse(UserState.empty)
 
           (prevAddState, text) match {
-            case (AddState(None, None, None), reminderName) =>
+            case (UserState(None, None, None), reminderName) =>
               val newAddState = prevAddState.copy(name = Some(reminderName))
               perChatState.setChatState(newAddState) >>
                 reply(
@@ -67,7 +67,7 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
                   replyToMessageId = Option(msg.messageId)
                 ).void
 
-            case (AddState(Some(_), None, None), dateStr) =>
+            case (UserState(Some(_), None, None), dateStr) =>
               parseDateTime(dateStr) match {
                 case Some(executeAt) =>
                   val newAddState = prevAddState.copy(executeAt = Some(executeAt))
@@ -83,7 +83,7 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, AddState])
                   ).void
               }
 
-            case (AddState(Some(name), Some(executeAt), None), daysStr) =>
+            case (UserState(Some(name), Some(executeAt), None), daysStr) =>
               Either
                 .catchOnly[NumberFormatException](daysStr.toInt)
                 .toOption
