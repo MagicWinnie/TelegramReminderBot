@@ -10,7 +10,9 @@ import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
 import com.magicwinnie.reminder.db.{ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
 import org.asynchttpclient.Dsl.asyncHttpClient
+import org.bson.types.ObjectId
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
+
 
 class Bot[F[_]: Async](
   token: String,
@@ -103,37 +105,49 @@ class Bot[F[_]: Async](
     }
   }
 
+  private def sendReminderAction(chatId: Long, reminderId: String, messageToEdit: Option[Int]): F[Unit] = {
+    val keyboard = InlineKeyboardMarkup.singleRow(
+      Seq(
+        InlineKeyboardButton.callbackData("Редактировать", s"edit:$reminderId:$chatId"),
+        InlineKeyboardButton.callbackData("Удалить", s"delete:$reminderId:$chatId")
+      )
+    )
+
+    val messageText = "Что хочешь сделать с этим напоминанием?"
+
+    messageToEdit match {
+      case None =>
+        request(
+          SendMessage(
+            text = messageText,
+            chatId = ChatId(chatId),
+            replyMarkup = Some(keyboard)
+          )
+        ).void
+
+      case Some(messageId) =>
+        request(
+          EditMessageText(
+            text = messageText,
+            chatId = Some(ChatId(chatId)),
+            messageId = Some(messageId),
+            replyMarkup = Some(keyboard)
+          )
+        ).void
+    }
+  }
+
   onCallbackQuery { implicit cbq =>
     cbq.data match {
       // Handle reminder selection
-//      case Some(data) if data.startsWith("reminder:") =>
-//        val Array(_, reminderId, chatId) = data.split(":")
-//        val ackEffect = ackCallback[F](s"You selected reminder ID: $reminderId")
-//        val reminderDetailsEffect = for {
-//          reminderOpt <- reminderRepository.getReminderById(reminderId) // Assuming getReminderById is implemented
-//          response <- reminderOpt match {
-//            case Some(reminder) =>
-//              val reminderDetails = s"Напоминание: ${reminder.name}\n" +
-//                s"Дата и время: ${reminder.executeAt.toString("HH:mm dd.MM.yyyy")}"
-//              cbq.message.traverse { msg =>
-//                request[F](
-//                  EditMessageReplyMarkup(
-//                    ChatId(msg.source),
-//                    msg.messageId,
-//                    replyMarkup = Some(InlineKeyboardMarkup.singleButton(
-//                      InlineKeyboardButton.callbackData("Back", s"page:0:$chatId")
-//                    ))
-//                  )
-//                )
-//              }.void
-//            case None =>
-//              cbq.message.traverse { msg =>
-//                reply[F]("Напоминание не найдено.", replyToMessageId = Some(msg.messageId))
-//              }.void
-//          }
-//        } yield response
-//
-//        ackEffect *> reminderDetailsEffect
+      case Some(data) if data.startsWith("reminder:") =>
+        data.split(":") match {
+          case Array(_, reminderId, chatId) =>
+            ackCallback(Some("Что хочешь сделать?")).void *>
+              sendReminderAction(chatId.toLong, reminderId, Some(cbq.message.get.messageId))
+          case _ =>
+            ackCallback(Some("Некорректный формат данных.")).void
+        }
 
       // Handle page navigation
       case Some(data) if data.startsWith("page:") =>
@@ -150,6 +164,32 @@ class Bot[F[_]: Async](
             }
         } else {
           ackCallback(Some("Некорректный формат данных.")).void
+        }
+
+      // Handle delete of reminder
+      case Some(data) if data.startsWith("delete:") =>
+        data.split(":") match {
+          case Array(_, reminderId, _) =>
+            if (ObjectId.isValid(reminderId)) {
+              val objectId = new ObjectId(reminderId)
+              for {
+                _ <- reminderRepository.deleteReminder(objectId)
+                _ <- ackCallback(Some("Напоминание удалено."))
+                _ <- cbq.message.traverse(msg =>
+                  request(
+                    EditMessageText(
+                      chatId = Some(ChatId(msg.chat.id)),
+                      messageId = Some(msg.messageId),
+                      text = "Напоминание удалено."
+                    )
+                  )
+                )
+              } yield ()
+            } else {
+              ackCallback(Some("Неверный формат ID напоминания.")).void
+            }
+          case _ =>
+            ackCallback(Some("Некорректный формат данных.")).void
         }
 
       case _ =>
