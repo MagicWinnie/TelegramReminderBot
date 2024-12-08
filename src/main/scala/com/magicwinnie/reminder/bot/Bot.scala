@@ -5,7 +5,7 @@ import cats.syntax.all._
 import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
 import com.bot4s.telegram.cats.{Polling, TelegramBot}
 import com.bot4s.telegram.methods.{EditMessageText, SendMessage}
-import com.bot4s.telegram.models.{ChatId, InlineKeyboardButton, InlineKeyboardMarkup, Message}
+import com.bot4s.telegram.models.{CallbackQuery, ChatId, InlineKeyboardButton, InlineKeyboardMarkup, Message}
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
 import com.magicwinnie.reminder.db.{ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
@@ -140,70 +140,78 @@ class Bot[F[_]: Async](
 
   onCallbackQuery { implicit cbq =>
     cbq.data match {
-      // Handle reminder selection
       case Some(data) if data.startsWith("reminder:") =>
-        data.split(":") match {
-          case Array(_, reminderId, chatId) =>
-            ackCallback(Some("Что хочешь сделать?")).void *>
-              sendReminderAction(chatId.toLong, reminderId, Some(cbq.message.get.messageId)) // TODO: fix unsafe .get
-          case _ =>
-            ackCallback(Some("Некорректный формат данных.")).void
-        }
+        handleReminderSelection(data)
 
-      // Handle page navigation
       case Some(data) if data.startsWith("page:") =>
-        data.split(":") match {
-          case Array(_, pageIndexStr, chatIdStr) =>
-            (for {
-              pageIndex <- Try(pageIndexStr.toInt).toOption
-              chatId <- Try(chatIdStr.toLong).toOption
-            } yield (pageIndex, chatId)) match {
-              case Some((pageIndex, chatId)) =>
-                ackCallback(Some("Переключение страницы...")).void *>
-                  reminderRepository.getRemindersForChat(chatId).flatMap { reminders =>
-                    sendReminderPage(
-                      chatId,
-                      reminders,
-                      pageIndex,
-                      Some(cbq.message.get.messageId)
-                    ) // TODO: fix unsafe .get
-                  }
-              case None =>
-                ackCallback(Some("Некорректный формат данных.")).void
-            }
+        handlePageNavigation(data)
 
-          case _ =>
-            ackCallback(Some("Некорректный формат данных.")).void
-        }
-
-      // Handle delete of reminder
       case Some(data) if data.startsWith("delete:") =>
-        data.split(":") match {
-          case Array(_, reminderId, _) =>
-            if (ObjectId.isValid(reminderId)) {
-              val objectId = new ObjectId(reminderId)
-              for {
-                _ <- reminderRepository.deleteReminder(objectId)
-                _ <- ackCallback(Some("Напоминание удалено."))
-                _ <- cbq.message.traverse(msg =>
-                  request(
-                    EditMessageText(
-                      chatId = Some(ChatId(msg.chat.id)),
-                      messageId = Some(msg.messageId),
-                      text = "Напоминание удалено."
-                    )
-                  )
-                )
-              } yield ()
-            } else {
-              ackCallback(Some("Неверный формат ID напоминания.")).void
-            }
-          case _ =>
-            ackCallback(Some("Некорректный формат данных.")).void
-        }
+        handleDeleteReminder(data)
 
       case _ =>
         ackCallback(Some("Некорректный запрос.")).void
+    }
+  }
+
+  private def handleReminderSelection(data: String)(implicit cbq: CallbackQuery): F[Unit] = {
+    data.split(":") match {
+      case Array(_, reminderId, chatId) =>
+        ackCallback(Some("Что хочешь сделать?")).void *>
+          sendReminderAction(chatId.toLong, reminderId, Some(cbq.message.get.messageId)) // TODO: fix unsafe .get
+      case _ =>
+        ackCallback(Some("Некорректный формат данных.")).void
+    }
+  }
+
+  private def handlePageNavigation(data: String)(implicit cbq: CallbackQuery): F[Unit] = {
+    data.split(":") match {
+      case Array(_, pageIndexStr, chatIdStr) =>
+        (for {
+          pageIndex <- Try(pageIndexStr.toInt).toOption
+          chatId <- Try(chatIdStr.toLong).toOption
+        } yield (pageIndex, chatId)) match {
+          case Some((pageIndex, chatId)) =>
+            ackCallback(Some("Переключение страницы...")).void *>
+              reminderRepository.getRemindersForChat(chatId).flatMap { reminders =>
+                sendReminderPage(
+                  chatId,
+                  reminders,
+                  pageIndex,
+                  Some(cbq.message.get.messageId)
+                ) // TODO: fix unsafe .get
+              }
+          case None =>
+            ackCallback(Some("Некорректный формат данных.")).void
+        }
+      case _ =>
+        ackCallback(Some("Некорректный формат данных.")).void
+    }
+  }
+
+  private def handleDeleteReminder(data: String)(implicit cbq: CallbackQuery): F[Unit] = {
+    data.split(":") match {
+      case Array(_, reminderId, _) =>
+        if (ObjectId.isValid(reminderId)) {
+          val objectId = new ObjectId(reminderId)
+          for {
+            _ <- reminderRepository.deleteReminder(objectId)
+            _ <- ackCallback(Some("Напоминание удалено."))
+            _ <- cbq.message.traverse(msg =>
+              request(
+                EditMessageText(
+                  chatId = Some(ChatId(msg.chat.id)),
+                  messageId = Some(msg.messageId),
+                  text = "Напоминание удалено."
+                )
+              )
+            )
+          } yield ()
+        } else {
+          ackCallback(Some("Неверный формат ID напоминания.")).void
+        }
+      case _ =>
+        ackCallback(Some("Некорректный формат данных.")).void
     }
   }
 
