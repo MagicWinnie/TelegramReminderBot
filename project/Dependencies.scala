@@ -7,7 +7,6 @@ object Dependencies {
     lazy val telegramCore = "com.bot4s" %% "telegram-core" % "5.8.3"
     lazy val mongoScalaDriver = "org.mongodb.scala" %% "mongo-scala-driver" % "5.2.0"
 
-    lazy val slogging = "biz.enef" %% "slogging" % "0.6.2"
     lazy val slf4jSimple = "org.slf4j" % "slf4j-simple" % "2.0.13"
 
     lazy val sttpCore = "com.softwaremill.sttp.client3" %% "core" % "3.9.7"
@@ -16,7 +15,7 @@ object Dependencies {
     lazy val nscalaTime = "com.github.nscala-time" %% "nscala-time" % "2.34.0"
 
     lazy val all: Seq[ModuleID] =
-      Seq(catsEffect, telegramCore, mongoScalaDriver, slogging, slf4jSimple, sttpCore, sttpAsync, nscalaTime)
+      Seq(catsEffect, telegramCore, mongoScalaDriver, slf4jSimple, sttpCore, sttpAsync, nscalaTime)
   }
 
   object test {

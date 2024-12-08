@@ -3,13 +3,11 @@ package com.magicwinnie.reminder.bot
 import cats.effect.Async
 import cats.syntax.all._
 import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
-import com.bot4s.telegram.cats.Polling
-import com.bot4s.telegram.cats.TelegramBot
+import com.bot4s.telegram.cats.{Polling, TelegramBot}
 import com.bot4s.telegram.models.Message
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
 import org.asynchttpclient.Dsl.asyncHttpClient
-import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, UserState])
@@ -17,10 +15,6 @@ class Bot[F[_]: Async](token: String, perChatState: PerChatState[F, UserState])
   with Polling[F]
   with Commands[F]
   with Callbacks[F] {
-
-  // Initialize Logging
-  LoggerConfig.factory = PrintLoggerFactory()
-  LoggerConfig.level = LogLevel.TRACE
 
   // Define bot commands
   onCommand("start") { implicit msg =>
