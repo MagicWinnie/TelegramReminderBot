@@ -4,7 +4,8 @@ import cats.effect.Async
 import cats.syntax.all._
 import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
 import com.bot4s.telegram.cats.{Polling, TelegramBot}
-import com.bot4s.telegram.models.Message
+import com.bot4s.telegram.methods.{EditMessageText, SendMessage}
+import com.bot4s.telegram.models.{ChatId, InlineKeyboardButton, InlineKeyboardMarkup, Message}
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
 import com.magicwinnie.reminder.db.{ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
@@ -40,7 +41,120 @@ class Bot[F[_]: Async](
   }
 
   onCommand("list") { implicit msg =>
-    reply("Команда находится в разработке", replyToMessageId = Some(msg.messageId)).void
+    for {
+      chatId <- Async[F].pure(msg.chat.id)
+      reminders <- reminderRepository.getRemindersForChat(chatId)
+      _ <-
+        if (reminders.isEmpty)
+          reply("Нет напоминаний.", replyToMessageId = Some(msg.messageId))
+        else
+          sendReminderPage(chatId, reminders, 0, None)
+    } yield ()
+  }
+
+  private def sendReminderPage(
+    chatId: Long,
+    reminders: Seq[ReminderModel],
+    page: Int,
+    messageToEdit: Option[Int]
+  ): F[Unit] = {
+    val pageSize = 5
+    val totalPages = (reminders.size + pageSize - 1) / pageSize
+    val start = page * pageSize
+    val end = math.min(start + pageSize, reminders.size)
+    val pageReminders = reminders.slice(start, end)
+
+    val reminderButtons = pageReminders.zipWithIndex.map { case (reminder, _) =>
+      InlineKeyboardButton.callbackData(reminder.name, s"reminder:${reminder._id}:$chatId")
+    }
+
+    val navButtons = List(
+      if (page > 0) Some(InlineKeyboardButton.callbackData("⬅️ Назад", s"page:${page - 1}:$chatId")) else None,
+      if (page < totalPages - 1) Some(InlineKeyboardButton.callbackData("➡️ Далее", s"page:${page + 1}:$chatId"))
+      else None
+    ).flatten
+
+    val keyboard = InlineKeyboardMarkup(
+      reminderButtons.grouped(1).toList ++ navButtons.grouped(2).toList
+    )
+
+    val messageText =
+      s"Твои напоминания (Страница ${page + 1} из $totalPages):"
+
+    messageToEdit match {
+      case None =>
+        request(
+          SendMessage(
+            text = messageText,
+            chatId = ChatId(chatId),
+            replyMarkup = Some(keyboard)
+          )
+        ).void
+
+      case _ =>
+        request(
+          EditMessageText(
+            text = messageText,
+            chatId = Some(ChatId(chatId)),
+            messageId = messageToEdit,
+            replyMarkup = Some(keyboard)
+          )
+        ).void
+    }
+  }
+
+  onCallbackQuery { implicit cbq =>
+    cbq.data match {
+      // Handle reminder selection
+//      case Some(data) if data.startsWith("reminder:") =>
+//        val Array(_, reminderId, chatId) = data.split(":")
+//        val ackEffect = ackCallback[F](s"You selected reminder ID: $reminderId")
+//        val reminderDetailsEffect = for {
+//          reminderOpt <- reminderRepository.getReminderById(reminderId) // Assuming getReminderById is implemented
+//          response <- reminderOpt match {
+//            case Some(reminder) =>
+//              val reminderDetails = s"Напоминание: ${reminder.name}\n" +
+//                s"Дата и время: ${reminder.executeAt.toString("HH:mm dd.MM.yyyy")}"
+//              cbq.message.traverse { msg =>
+//                request[F](
+//                  EditMessageReplyMarkup(
+//                    ChatId(msg.source),
+//                    msg.messageId,
+//                    replyMarkup = Some(InlineKeyboardMarkup.singleButton(
+//                      InlineKeyboardButton.callbackData("Back", s"page:0:$chatId")
+//                    ))
+//                  )
+//                )
+//              }.void
+//            case None =>
+//              cbq.message.traverse { msg =>
+//                reply[F]("Напоминание не найдено.", replyToMessageId = Some(msg.messageId))
+//              }.void
+//          }
+//        } yield response
+//
+//        ackEffect *> reminderDetailsEffect
+
+      // Handle page navigation
+      case Some(data) if data.startsWith("page:") =>
+        // Extract the page index and chat ID
+        val parts = data.split(":")
+        if (parts.length == 3) {
+          val pageIndex = parts(1).toInt
+          val chatId = parts(2).toLong
+
+          ackCallback(Some("Переключение страницы...")).void *>
+            // Update the message with new reminders
+            reminderRepository.getRemindersForChat(chatId).flatMap { reminders =>
+              sendReminderPage(chatId, reminders, pageIndex, Some(cbq.message.get.messageId))
+            }
+        } else {
+          ackCallback(Some("Некорректный формат данных.")).void
+        }
+
+      case _ =>
+        ackCallback(Some("Некорректный запрос.")).void
+    }
   }
 
   onCommand("add") { implicit msg =>
@@ -134,7 +248,7 @@ class Bot[F[_]: Async](
       .left
       .map(_ => "Введи корректное число дней.")
       .flatMap { days =>
-        if (days > 0) Right(Period.days(days))
+        if (days >= 0) Right(Period.days(days))
         else Left("Число должно быть положительным.")
       }
   }
