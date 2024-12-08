@@ -142,13 +142,11 @@ class Bot[F[_]: Async](
     cbq.data match {
       case Some(data) if data.startsWith("reminder:") =>
         handleReminderSelection(data)
-
       case Some(data) if data.startsWith("page:") =>
         handlePageNavigation(data)
-
       case Some(data) if data.startsWith("delete:") =>
         handleDeleteReminder(data)
-
+      // TODO: add "edit:"
       case _ =>
         ackCallback(Some("Некорректный запрос.")).void
     }
