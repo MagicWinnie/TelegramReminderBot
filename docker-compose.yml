@@ -1,0 +1,27 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: reminder-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - reminder-network
+
+  scala-app:
+    build: .
+    container_name: reminder-app
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+    networks:
+      - reminder-network
+
+networks:
+  reminder-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
