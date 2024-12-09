@@ -18,5 +18,14 @@ Compile / compile / scalacOptions ++= Seq(
 lazy val root = (project in file("."))
   .settings(
     name := "telegram-reminder-bot",
-    libraryDependencies ++= Dependencies.test.all ++ Dependencies.core.all,
+    assembly / assemblyJarName :=  "telegram-reminder-bot.jar",
+    libraryDependencies ++= Dependencies.test.all ++ Dependencies.core.all
   )
+
+assembly / assemblyMergeStrategy := {
+  case PathList("META-INF", "MANIFEST.MF")       => MergeStrategy.discard
+  case PathList("META-INF", "services", xs @ _*) => MergeStrategy.filterDistinctLines
+  case PathList("META-INF", xs @ _*)             => MergeStrategy.discard
+  case PathList("module-info.class")             => MergeStrategy.discard
+  case x                                         => MergeStrategy.first
+}
