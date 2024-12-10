@@ -7,6 +7,7 @@ import com.bot4s.telegram.methods.{ParseMode, SendMessage}
 import com.bot4s.telegram.models.ChatId
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
 import com.magicwinnie.reminder.db.{ReminderModel, ReminderRepository}
+import com.typesafe.scalalogging.StrictLogging
 import org.asynchttpclient.Dsl._
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
@@ -15,7 +16,8 @@ import scala.concurrent.duration._
 class Notifier[F[_]: Async](
   token: String,
   reminderRepository: ReminderRepository[F]
-) extends TelegramBot[F](token, AsyncHttpClientCatsBackend.usingClient[F](asyncHttpClient())) {
+) extends TelegramBot[F](token, AsyncHttpClientCatsBackend.usingClient[F](asyncHttpClient()))
+  with StrictLogging {
 
   private def processReminders(): F[Unit] = {
     def loop: F[Unit] = {
@@ -33,7 +35,7 @@ class Notifier[F[_]: Async](
 
           request(send).flatMap { message =>
             Concurrent[F].delay(
-              println(s"Message sent: '${message.text.getOrElse("")}' to chatId: ${message.chat.id}")
+              logger.info(s"Message sent: '${message.text.getOrElse("")}' to chatId: ${message.chat.id}")
             )
           } *> handleRepeat(reminder)
         }
@@ -43,7 +45,7 @@ class Notifier[F[_]: Async](
     }
 
     loop.handleErrorWith { e =>
-      Concurrent[F].delay(println(s"Error in reminder processor: ${e.getMessage}")) *>
+      Concurrent[F].delay(logger.info(s"Error in reminder processor: ${e.getMessage}")) *>
         Temporal[F].sleep(30.seconds) *>
         processReminders()
     }
@@ -60,7 +62,7 @@ class Notifier[F[_]: Async](
   }
 
   def start(): F[Unit] = {
-    println("Notifier has started processing reminders")
+    logger.info("Notifier has started processing reminders")
     processReminders()
   }
 
