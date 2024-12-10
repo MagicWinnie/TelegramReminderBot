@@ -272,7 +272,7 @@ class Bot[F[_]: Async](
   private def handleAwaitingRepeat(name: String, executeAt: DateTime, text: String)(implicit msg: Message): F[Unit] = {
     parseRepeatInterval(text) match {
       case Right(days) =>
-        logger.info(s"Saving notification: $name, ${executeAt.toString("HH:mm dd.MM.yyyy")}, ${days.getDays}")
+        logger.info(s"Saving notification: $name, $executeAt, ${days.getDays}")
 
         val repeatPeriod = if (days.getDays > 0) Some(days) else None
         val reminder = ReminderModel(
@@ -287,7 +287,7 @@ class Bot[F[_]: Async](
           reply(
             s"Мы сохранили напоминание с названием \"$name\", " +
               s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")}" +
-              s"${repeatPeriod.fold("")(p => s"с периодом в ${p.getDays} дня(ей)")}",
+              s"${repeatPeriod.fold("")(p => s" с периодом в ${p.getDays} дня(ей)")}",
             replyToMessageId = Some(msg.messageId)
           ).void >>
           perChatState.clearChatState
@@ -301,8 +301,7 @@ class Bot[F[_]: Async](
 
   private def parseDateTime(dateString: String): Either[String, DateTime] = {
     val formatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy Z")
-
-    Try(DateTime.parse(dateString, formatter)).toEither.left
+    Try(formatter.withOffsetParsed().parseDateTime(dateString)).toEither.left
       .map(_ => "Используй формат HH:MM DD.MM.YYYY ±HHMM, например, 14:30 25.12.2024 +0300")
   }
 
