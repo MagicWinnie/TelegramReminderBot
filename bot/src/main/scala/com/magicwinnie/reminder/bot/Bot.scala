@@ -6,11 +6,12 @@ import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
 import com.bot4s.telegram.cats.{Polling, TelegramBot}
 import com.bot4s.telegram.methods.{EditMessageText, SendMessage}
 import com.bot4s.telegram.models._
-import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, DateTimeZone, Period}
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
 import com.magicwinnie.reminder.db.{ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
 import org.asynchttpclient.Dsl.asyncHttpClient
 import org.bson.types.ObjectId
+import org.joda.time.DateTimeZone
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.util.Try
@@ -68,8 +69,9 @@ class Bot[F[_]: Async](
     val pageReminders = reminders.slice(start, end)
 
     val reminderButtons = pageReminders.zipWithIndex.map { case (reminder, _) =>
+      val timezoneExecuteAt = reminder.executeAt.withZone(DateTimeZone.forID(reminder.timezoneID))
       InlineKeyboardButton.callbackData(
-        s"${reminder.name} - ${reminder.executeAt.toString("HH:mm dd.MM.yyyy")} (UTC)",
+        s"${reminder.name} - ${timezoneExecuteAt.toString("HH:mm dd.MM.yyyy")} (${reminder.timezoneID})",
         s"reminder:${reminder._id}:$chatId"
       )
     }
@@ -276,14 +278,15 @@ class Bot[F[_]: Async](
         val reminder = ReminderModel(
           chatId = msg.chat.id,
           name = name,
-          executeAt = executeAt,
-          repeatIn = repeatPeriod
+          executeAt = executeAt, // MongoDB saves as UTC
+          repeatIn = repeatPeriod,
+          timezoneID = executeAt.getZone.getID
         )
 
         reminderRepository.createReminder(reminder) >>
           reply(
             s"Мы сохранили напоминание с названием \"$name\", " +
-              s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} (UTC)" +
+              s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")}" +
               s"${repeatPeriod.fold("")(p => s"с периодом в ${p.getDays} дня(ей)")}",
             replyToMessageId = Some(msg.messageId)
           ).void >>
@@ -301,9 +304,6 @@ class Bot[F[_]: Async](
 
     Try(DateTime.parse(dateString, formatter)).toEither.left
       .map(_ => "Используй формат HH:MM DD.MM.YYYY ±HHMM, например, 14:30 25.12.2024 +0300")
-      .flatMap { dt =>
-        Try(dt.withZone(DateTimeZone.UTC)).toEither.left.map(_ => "Не удалось конвертировать время в UTC")
-      }
   }
 
   private def parseRepeatInterval(daysStr: String): Either[String, Period] = {
