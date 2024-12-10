@@ -68,7 +68,10 @@ class Bot[F[_]: Async](
     val pageReminders = reminders.slice(start, end)
 
     val reminderButtons = pageReminders.zipWithIndex.map { case (reminder, _) =>
-      InlineKeyboardButton.callbackData(reminder.name, s"reminder:${reminder._id}:$chatId")
+      InlineKeyboardButton.callbackData(
+        s"${reminder.name} - ${reminder.executeAt.toString("HH:mm dd.MM.yyyy")} (UTC)",
+        s"reminder:${reminder._id}:$chatId"
+      )
     }
 
     val navButtons = List(
@@ -243,15 +246,15 @@ class Bot[F[_]: Async](
   private def handleAwaitingName(text: String)(implicit msg: Message): F[Unit] = {
     perChatState.setChatState(UserState.AwaitingDate(text)) >>
       reply(
-        "Введи дату в формате HH:MM DD.MM.YYYY",
+        "Введи дату в формате HH:MM DD.MM.YYYY ±HHMM (например, 14:30 25.12.2024 +0300)",
         replyToMessageId = Some(msg.messageId)
       ).void
   }
 
   private def handleAwaitingDate(name: String, text: String)(implicit msg: Message): F[Unit] = {
     parseDateTime(text) match {
-      case Right(executeAt) =>
-        perChatState.setChatState(UserState.AwaitingRepeat(name, executeAt)) >>
+      case Right(executeAtUtc) =>
+        perChatState.setChatState(UserState.AwaitingRepeat(name, executeAtUtc)) >>
           reply(
             "Введи через сколько дней повторять это напоминание",
             replyToMessageId = Some(msg.messageId)
@@ -274,13 +277,13 @@ class Bot[F[_]: Async](
           chatId = msg.chat.id,
           name = name,
           executeAt = executeAt,
-          repeatIn = repeatPeriod,
+          repeatIn = repeatPeriod
         )
 
         reminderRepository.createReminder(reminder) >>
           reply(
             s"Мы сохранили напоминание с названием \"$name\", " +
-              s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} " +
+              s"который исполнится в ${executeAt.toString("HH:mm dd.MM.yyyy")} (UTC)" +
               s"${repeatPeriod.fold("")(p => s"с периодом в ${p.getDays} дня(ей)")}",
             replyToMessageId = Some(msg.messageId)
           ).void >>
@@ -294,8 +297,13 @@ class Bot[F[_]: Async](
   }
 
   private def parseDateTime(dateString: String): Either[String, DateTime] = {
-    val formatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy")
-    Either.catchNonFatal(DateTime.parse(dateString, formatter)).left.map(_ => "Используй формат HH:MM DD.MM.YYYY")
+    val formatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy Z")
+
+    Try(DateTime.parse(dateString, formatter)).toEither.left
+      .map(_ => "Используй формат HH:MM DD.MM.YYYY ±HHMM, например, 14:30 25.12.2024 +0300")
+      .flatMap { dt =>
+        Try(dt.withZone(DateTimeZone.UTC)).toEither.left.map(_ => "Не удалось конвертировать время в UTC")
+      }
   }
 
   private def parseRepeatInterval(daysStr: String): Either[String, Period] = {
