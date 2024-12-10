@@ -6,7 +6,7 @@ import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
 import com.bot4s.telegram.cats.{Polling, TelegramBot}
 import com.bot4s.telegram.methods.{EditMessageText, SendMessage}
 import com.bot4s.telegram.models._
-import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, DateTimeZone, Period}
 import com.magicwinnie.reminder.db.{ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
 import org.asynchttpclient.Dsl.asyncHttpClient
@@ -275,7 +275,6 @@ class Bot[F[_]: Async](
           name = name,
           executeAt = executeAt,
           repeatIn = repeatPeriod,
-          createdAt = DateTime.now()
         )
 
         reminderRepository.createReminder(reminder) >>

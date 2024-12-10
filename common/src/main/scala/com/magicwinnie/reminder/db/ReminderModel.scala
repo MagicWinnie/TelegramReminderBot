@@ -8,6 +8,5 @@ case class ReminderModel(
   chatId: Long,
   name: String,
   executeAt: DateTime,
-  repeatIn: Option[Period],
-  createdAt: DateTime
+  repeatIn: Option[Period]
 )
