@@ -1,12 +1,12 @@
 package com.magicwinnie.reminder
 
-import cats.effect.{Async, ExitCode, IO, IOApp, Resource}
+import cats.effect._
 import com.magicwinnie.reminder.bot.Bot
 import com.magicwinnie.reminder.db.{MongoDBClient, ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
 import org.mongodb.scala.MongoCollection
 
-object Main extends IOApp {
+object MainBot extends IOApp {
   private def makeBot[F[_]: Async](token: String, collection: MongoCollection[ReminderModel]): Resource[F, Bot[F]] = {
     for {
       perChatState <- Resource.eval(PerChatState.create[F, UserState])

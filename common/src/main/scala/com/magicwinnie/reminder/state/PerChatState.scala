@@ -1,7 +1,6 @@
 package com.magicwinnie.reminder.state
 
-import cats.effect.Concurrent
-import cats.effect.Ref
+import cats.effect.{Concurrent, Ref}
 import cats.syntax.all._
 import com.bot4s.telegram.models.Message
 

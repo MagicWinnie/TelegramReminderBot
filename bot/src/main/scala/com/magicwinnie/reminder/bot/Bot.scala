@@ -5,7 +5,7 @@ import cats.syntax.all._
 import com.bot4s.telegram.api.declarative.{Callbacks, Commands}
 import com.bot4s.telegram.cats.{Polling, TelegramBot}
 import com.bot4s.telegram.methods.{EditMessageText, SendMessage}
-import com.bot4s.telegram.models.{CallbackQuery, ChatId, InlineKeyboardButton, InlineKeyboardMarkup, Message}
+import com.bot4s.telegram.models._
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, Period}
 import com.magicwinnie.reminder.db.{ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.state.{PerChatState, UserState}
