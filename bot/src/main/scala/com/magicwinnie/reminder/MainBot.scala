@@ -22,7 +22,7 @@ object MainBot extends IOApp {
           bot.startPolling().as(ExitCode.Success)
         }
       case _ =>
-        IO.raiseError(new Exception("Usage:\nMain $token $mongoURI"))
+        IO.println(new Exception("Usage: MainBot $botToken $mongoURI")).as(ExitCode.Error)
     }
   }
 }
