@@ -9,13 +9,25 @@ services:
     networks:
       - reminder-network
 
-  scala-app:
+  bot:
     build: .
-    container_name: reminder-app
+    container_name: reminder-bot
     env_file:
       - .env
     depends_on:
       - mongodb
+    command: [ "java", "-jar", "/app/telegram-reminder-bot.jar", "$BOT_TOKEN", "$MONGODB_URI" ]
+    networks:
+      - reminder-network
+
+  notifier:
+    build: .
+    container_name: reminder-notifier
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+    command: [ "java", "-jar", "/app/telegram-reminder-notifier.jar", "$BOT_TOKEN", "$MONGODB_URI" ]
     networks:
       - reminder-network
 
