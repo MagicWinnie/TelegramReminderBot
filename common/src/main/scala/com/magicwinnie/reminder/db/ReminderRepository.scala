@@ -5,7 +5,7 @@ import cats.syntax.functor._
 import com.github.nscala_time.time.Imports.DateTime
 import org.mongodb.scala._
 import org.mongodb.scala.bson.ObjectId
-import org.mongodb.scala.model.Filters.{equal, lte}
+import org.mongodb.scala.model.Filters.{equal, gte}
 import org.mongodb.scala.model.Updates.set
 
 class ReminderRepository[F[_]: Async](collection: MongoCollection[ReminderModel]) {
@@ -20,7 +20,7 @@ class ReminderRepository[F[_]: Async](collection: MongoCollection[ReminderModel]
   def getRemindersToExecute(currentTime: DateTime): F[Seq[ReminderModel]] = {
     Async[F].fromFuture(
       Async[F].delay(
-        collection.find(lte("executeAt", currentTime)).toFuture()
+        collection.find(gte("executeAt", currentTime)).toFuture()
       )
     )
   }
