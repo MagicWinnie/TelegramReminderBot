@@ -43,16 +43,16 @@ lazy val bot = (project in file("bot"))
   )
   .settings(commonAssemblySettings)
 
-//lazy val notifier = (project in file("notifier"))
-//  .dependsOn(common)
-//  .settings(
-//    name := "telegram-reminder-notifier",
-//    libraryDependencies ++= Dependencies.test.all ++ Dependencies.core.all,
-//  )
-//  .settings(commonAssemblySettings)
+lazy val notifier = (project in file("notifier"))
+  .dependsOn(common)
+  .settings(
+    name := "telegram-reminder-notifier",
+    libraryDependencies ++= Dependencies.test.all ++ Dependencies.core.all
+  )
+  .settings(commonAssemblySettings)
 
 lazy val root = (project in file("."))
-  .aggregate(common, bot) // , notifier)
+  .aggregate(common, bot, notifier)
   .settings(
     name := "telegram-reminder-bot-project"
   )
