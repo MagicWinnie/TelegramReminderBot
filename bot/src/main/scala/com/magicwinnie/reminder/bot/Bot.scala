@@ -161,7 +161,12 @@ class Bot[F[_]: Async](
     data.split(":") match {
       case Array(_, reminderId, chatId) =>
         ackCallback(Some("Что хочешь сделать?")).void *>
-          sendReminderAction(chatId.toLong, reminderId, Some(cbq.message.get.messageId)) // TODO: fix unsafe .get
+          (cbq.message match {
+            case Some(msg) =>
+              sendReminderAction(chatId.toLong, reminderId, Some(msg.messageId))
+            case None =>
+              ackCallback(Some("Сообщение не существует")).void
+          })
       case _ =>
         ackCallback(Some("Некорректный формат данных")).void
     }
@@ -177,12 +182,17 @@ class Bot[F[_]: Async](
           case Some((pageIndex, chatId)) =>
             ackCallback(Some("Переключение страницы...")).void *>
               reminderRepository.getRemindersForChat(chatId).flatMap { reminders =>
-                sendReminderPage(
-                  chatId,
-                  reminders,
-                  pageIndex,
-                  Some(cbq.message.get.messageId)
-                ) // TODO: fix unsafe .get
+                cbq.message match {
+                  case Some(msg) =>
+                    sendReminderPage(
+                      chatId,
+                      reminders,
+                      pageIndex,
+                      Some(msg.messageId)
+                    )
+                  case None =>
+                    ackCallback(Some("Сообщение не существует")).void
+                }
               }
           case None =>
             ackCallback(Some("Некорректный формат данных")).void
