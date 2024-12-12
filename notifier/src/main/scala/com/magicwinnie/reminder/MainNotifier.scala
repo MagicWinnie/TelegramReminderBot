@@ -8,12 +8,11 @@ object MainNotifier extends IOApp {
   def run(args: List[String]): IO[ExitCode] = {
     args match {
       case List(token, mongoUri) =>
-        val collection = new MongoDBClient(mongoUri).getCollection[ReminderModel]("reminders")
-        val repository = new ReminderRepository[IO](collection)
-
-        val notifier = new Notifier[IO](token, repository)
-
+        val mongoClient = new MongoDBClient(mongoUri)
         val program = for {
+          collection <- Resource.eval(mongoClient.getCollection[ReminderModel]("reminders"))
+          repository = new ReminderRepository[IO](collection)
+          notifier = new Notifier[IO](token, repository)
           _ <- Resource.eval(notifier.start())
         } yield ExitCode.Success
 

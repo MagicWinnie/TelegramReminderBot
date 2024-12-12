@@ -17,10 +17,13 @@ object MainBot extends IOApp {
   def run(args: List[String]): IO[ExitCode] = {
     args match {
       case List(token, mongoUri) =>
-        val collection = new MongoDBClient(mongoUri).getCollection[ReminderModel]("reminders")
-        makeBot[IO](token, collection).use { bot =>
-          bot.startPolling().as(ExitCode.Success)
-        }
+        val mongoClient = new MongoDBClient(mongoUri)
+        for {
+          collection <- mongoClient.getCollection[ReminderModel]("reminders")
+          exitCode <- makeBot[IO](token, collection).use { bot =>
+            bot.startPolling().as(ExitCode.Success)
+          }
+        } yield exitCode
       case _ =>
         IO.println("Usage: MainBot $botToken $mongoURI").as(ExitCode.Error)
     }
