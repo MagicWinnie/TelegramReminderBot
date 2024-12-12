@@ -22,6 +22,6 @@ build:
 test:
   stage: test
   services:
-    - docker:dind
+    - docker:19.03.12-dind
   script:
     - sbt test
