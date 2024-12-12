@@ -1,0 +1,39 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: reminder-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - reminder-network
+
+  bot:
+    build: .
+    container_name: reminder-bot
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+    command: [ "java", "-jar", "/app/telegram-reminder-bot.jar", "$BOT_TOKEN", "$MONGODB_URI" ]
+    networks:
+      - reminder-network
+
+  notifier:
+    build: .
+    container_name: reminder-notifier
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+    command: [ "java", "-jar", "/app/telegram-reminder-notifier.jar", "$BOT_TOKEN", "$MONGODB_URI" ]
+    networks:
+      - reminder-network
+
+networks:
+  reminder-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
