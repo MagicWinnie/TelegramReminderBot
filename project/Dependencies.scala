@@ -21,7 +21,6 @@ object Dependencies {
       "org.scalatest" %% "scalatest" % "3.2.19" % Test
 //      "org.typelevel" %% "cats-laws" % "2.12.0" % Test,
 //      "org.typelevel" %% "discipline-scalatest" % "2.3.0" % Test,
-//      "io.github.kirill5k" %% "mongo4cats-embedded" % "0.7.8" % Test
     )
   }
 }
