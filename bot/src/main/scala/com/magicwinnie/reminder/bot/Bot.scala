@@ -15,6 +15,17 @@ import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.util.{Failure, Success, Try}
 
+/** Telegram bot for managing reminders with support for creating, listing, and deleting reminders.
+  *
+  * @param token
+  *   Telegram bot token
+  * @param perChatState
+  *   Manages user states for different chat sessions
+  * @param reminderRepository
+  *   Handles database operations for reminder storage
+  * @tparam F
+  *   Effect type for asynchronous operations
+  */
 class Bot[F[_]: Async](
   token: String,
   perChatState: PerChatState[F, UserState],
@@ -24,6 +35,7 @@ class Bot[F[_]: Async](
   with Commands[F]
   with Callbacks[F] {
 
+  /** Handles the /start command to provide a welcome message */
   onCommand("start") { implicit msg =>
     reply(
       "Привет!\n" +
@@ -32,6 +44,7 @@ class Bot[F[_]: Async](
     ).void
   }
 
+  /** Handles the /help command to display available bot commands */
   onCommand("help") { implicit msg =>
     reply(
       "Доступные команды:\n" +
@@ -42,6 +55,7 @@ class Bot[F[_]: Async](
     ).void
   }
 
+  /** Handles the /list command to display user's reminders with pagination */
   onCommand("list") { implicit msg =>
     for {
       chatId <- Async[F].pure(msg.chat.id)
@@ -54,18 +68,30 @@ class Bot[F[_]: Async](
     } yield ()
   }
 
+  /** Sends a paginated list of reminders for a specific chat
+    *
+    * @param chatId
+    *   Unique identifier for the chat
+    * @param reminders
+    *   List of reminders to display
+    * @param page
+    *   Current page number
+    * @param messageToEdit
+    *   Optional message ID for editing existing message
+    */
   private def sendReminderPage(
     chatId: Long,
     reminders: Seq[ReminderModel],
     page: Int,
     messageToEdit: Option[Int]
   ): F[Unit] = {
-    val pageSize = 5
+    val pageSize = 5 // Maximum reminders per page
     val totalPages = (reminders.size + pageSize - 1) / pageSize
     val start = page * pageSize
     val end = math.min(start + pageSize, reminders.size)
     val pageReminders = reminders.slice(start, end)
 
+    // Create buttons for each reminder
     val reminderButtons = pageReminders.zipWithIndex.map { case (reminder, _) =>
       val timezoneExecuteAt = reminder.executeAt.withZone(DateTimeZone.forID(reminder.timezoneID))
       InlineKeyboardButton.callbackData(
@@ -74,6 +100,7 @@ class Bot[F[_]: Async](
       )
     }
 
+    // Create navigation buttons for multipage lists
     val navButtons = List(
       if (page > 0) Some(InlineKeyboardButton.callbackData("⬅️ Назад", s"page:${page - 1}:$chatId")) else None,
       if (page < totalPages - 1) Some(InlineKeyboardButton.callbackData("➡️ Далее", s"page:${page + 1}:$chatId"))
@@ -109,6 +136,15 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Sends action buttons for a selected reminder
+    *
+    * @param chatId
+    *   Unique identifier for the chat
+    * @param reminderId
+    *   Unique identifier of the selected reminder
+    * @param messageToEdit
+    *   Optional message ID for editing existing message
+    */
   private def sendReminderAction(chatId: Long, reminderId: String, messageToEdit: Option[Int]): F[Unit] = {
     val keyboard = InlineKeyboardMarkup.singleRow(
       Seq(
@@ -141,6 +177,7 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Handles incoming callback queries from inline buttons */
   onCallbackQuery { implicit cbq =>
     cbq.data match {
       case Some(data) if data.startsWith("reminder:") =>
@@ -155,6 +192,11 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Processes reminder selection callback
+    *
+    * @param data
+    *   Callback data containing reminder and chat identifiers
+    */
   private def handleReminderSelection(data: String)(implicit cbq: CallbackQuery): F[Unit] = {
     data.split(":") match {
       case Array(_, reminderId, chatId) =>
@@ -170,6 +212,11 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Handles pagination navigation for reminder list
+    *
+    * @param data
+    *   Callback data containing page and chat identifiers
+    */
   private def handlePageNavigation(data: String)(implicit cbq: CallbackQuery): F[Unit] = {
     data.split(":") match {
       case Array(_, pageIndexStr, chatIdStr) =>
@@ -200,6 +247,11 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Handles reminder deletion process
+    *
+    * @param data
+    *   Callback data containing reminder identifier
+    */
   private def handleDeleteReminder(data: String)(implicit cbq: CallbackQuery): F[Unit] = {
     data.split(":") match {
       case Array(_, reminderId, _) =>
@@ -227,11 +279,13 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Initiates reminder creation process with the /add command */
   onCommand("add") { implicit msg =>
     reply("Введи название нового напоминания", replyToMessageId = Some(msg.messageId)).void >>
       perChatState.setChatState(UserState.AwaitingName)
   }
 
+  /** Processes incoming messages based on current user state */
   override def receiveMessage(msg: Message): F[Unit] = {
     implicit val implicitMessage: Message = msg
 
@@ -253,6 +307,11 @@ class Bot[F[_]: Async](
     }) >> super.receiveMessage(msg)
   }
 
+  /** Processes reminder name input
+    *
+    * @param text
+    *   Reminder name entered by user
+    */
   private def handleAwaitingName(text: String)(implicit msg: Message): F[Unit] = {
     perChatState.setChatState(UserState.AwaitingDate(text)) >>
       reply(
@@ -261,6 +320,13 @@ class Bot[F[_]: Async](
       ).void
   }
 
+  /** Processes reminder date input
+    *
+    * @param name
+    *   Reminder name
+    * @param text
+    *   Date string entered by user
+    */
   private def handleAwaitingDate(name: String, text: String)(implicit msg: Message): F[Unit] = {
     parseDateTime(text) match {
       case Right(executeAtUtc) =>
@@ -277,6 +343,15 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Processes reminder repeat interval input
+    *
+    * @param name
+    *   Reminder name
+    * @param executeAt
+    *   Reminder execution datetime
+    * @param text
+    *   Repeat interval entered by user
+    */
   private def handleAwaitingRepeat(name: String, executeAt: DateTime, text: String)(implicit msg: Message): F[Unit] = {
     parseRepeatInterval(text) match {
       case Right(days) =>
@@ -307,12 +382,26 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Parses a date-time string into a DateTime object with a specific format.
+    *
+    * @param dateString
+    *   The input date-time string to parse
+    * @return
+    *   Either the parsed DateTime or an error message
+    */
   private def parseDateTime(dateString: String): Either[String, DateTime] = {
     val formatter = DateTimeFormat.forPattern("HH:mm dd.MM.yyyy Z")
     Try(formatter.withOffsetParsed().parseDateTime(dateString)).toEither.left
       .map(_ => "Используй формат HH:MM DD.MM.YYYY ±HHMM, например, 14:30 25.12.2024 +0300")
   }
 
+  /** Converts a string representation of days to a Period.
+    *
+    * @param daysStr
+    *   The number of days as a string
+    * @return
+    *   Either the created Period or an error message
+    */
   private def parseRepeatInterval(daysStr: String): Either[String, Period] = {
     Try(daysStr.toInt) match {
       case Success(days) =>
@@ -323,11 +412,13 @@ class Bot[F[_]: Async](
     }
   }
 
+  /** Begins polling for the Telegram Bot and logs the start. */
   override def startPolling(): F[Unit] = {
     logger.info("Telegram Bot has started polling ")
     super.startPolling()
   }
 
+  /** Stops the Telegram Bot and logs the shutdown. */
   override def shutdown(): Unit = {
     logger.info("Telegram Bot has stopped")
     super.shutdown()
