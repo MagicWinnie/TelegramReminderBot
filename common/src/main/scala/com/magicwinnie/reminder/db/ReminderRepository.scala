@@ -8,62 +8,66 @@ import org.mongodb.scala.bson.ObjectId
 import org.mongodb.scala.model.Filters.{equal, lte}
 import org.mongodb.scala.model.Updates.set
 
-/** Интерфейс для работы с напоминаниями в MongoDB.
+/** Repository interface for managing reminders in the database.
   *
   * @tparam F
-  *   Абстракция эффекта, используемая для работы с асинхронными или эффектно-ориентированными действиями.
+  *   Type of effect context
   */
 trait ReminderRepository[F[_]] {
 
-  /** Создает новое напоминание на основе переданной модели.
+  /** Creates a new reminder in the database.
     *
     * @param reminder
-    *   объект модели ReminderModel, содержащий данные напоминания
-    * @return
-    *   эффекто-обёртка (F[Unit]), сигнализирующая об успешном завершении операции
+    *   The reminder to be created
     */
   def createReminder(reminder: ReminderModel): F[Unit]
 
-  /** Возвращает список напоминаний для указанного чата.
+  /** Retrieves all reminders for a specific chat.
     *
     * @param chatId
-    *   идентификатор чата, для которого необходимо получить напоминания
+    *   The ID of the chat
     * @return
-    *   список моделей напоминаний для указанного чата, обернутый в эффект F
+    *   A sequence of reminders associated with the chat
     */
   def getRemindersForChat(chatId: Long): F[Seq[ReminderModel]]
 
-  /** Возвращает список напоминаний, которые необходимо выполнить на текущий момент времени.
+  /** Retrieves reminders scheduled for execution by the given time.
     *
     * @param currentTime
-    *   текущее время, на основе которого определяется, какие напоминания следует выполнить
+    *   The current time to check reminders against
     * @return
-    *   список напоминаний, которые должны быть выполнены
+    *   A sequence of reminders to execute
     */
   def getRemindersToExecute(currentTime: DateTime): F[Seq[ReminderModel]]
 
-  /** Обновляет напоминание по представленной модели.
+  /** Updates an existing reminder in the database.
     *
     * @param reminder
-    *   объект типа ReminderModel, содержащий данные напоминания, которые нужно обновить
-    * @return
-    *   эффект F[Unit], представляющий результат выполнения обновления
+    *   The reminder with updated information
     */
   def updateReminder(reminder: ReminderModel): F[Unit]
 
-  /** Удаляет напоминание с указанным идентификатором.
+  /** Deletes a reminder by its unique identifier.
     *
     * @param id
-    *   идентификатор напоминания, которое требуется удалить
-    * @return
-    *   результат операции удаления в виде значения типа F[Unit]
+    *   The unique ID of the reminder to delete
     */
   def deleteReminder(id: ObjectId): F[Unit]
 }
 
+/** Factory and implementation for ReminderRepository. */
 object ReminderRepository {
+
+  /** Live implementation of ReminderRepository backed by a MongoDB collection.
+    *
+    * @param collection
+    *   The MongoDB collection used to manage reminders
+    * @tparam F
+    *   Type of effect context
+    */
   private class LiveReminderRepository[F[_]: Async](collection: MongoCollection[ReminderModel])
     extends ReminderRepository[F] {
+
     override def createReminder(reminder: ReminderModel): F[Unit] =
       Async[F].fromFuture(Async[F].delay(collection.insertOne(reminder).toFuture())).void
 
@@ -86,14 +90,17 @@ object ReminderRepository {
       Async[F].fromFuture(Async[F].delay(collection.deleteOne(equal("_id", id)).toFuture())).void
   }
 
-  /** Создает экземпляр репозитория напоминаний.
+  /** Creates a ReminderRepository instance.
     *
     * @param collection
-    *   Коллекция MongoDB, содержащая объекты напоминаний.
+    *   The MongoDB collection used to manage reminders
+    * @tparam F
+    *   Type of effect context
     * @return
-    *   Инстанс `ReminderRepository` внутри эффекта IO.
+    *   A ReminderRepository instance wrapped in an effect
     */
   def make[F[_]: Async](collection: MongoCollection[ReminderModel]): IO[ReminderRepository[F]] = {
     IO.pure(new LiveReminderRepository[F](collection))
   }
+
 }
