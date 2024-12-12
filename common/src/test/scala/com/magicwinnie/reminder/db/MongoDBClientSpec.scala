@@ -18,8 +18,7 @@ class MongoDBClientSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
   override def beforeAll(): Unit = {
     container.start()
-    val mongoUri: String = container.getConnectionString
-    client = new MongoDBClient(mongoUri)
+    client = new MongoDBClient(container.getConnectionString)
   }
 
   override def afterAll(): Unit = {

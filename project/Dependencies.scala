@@ -21,7 +21,8 @@ object Dependencies {
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "org.mockito" %% "mockito-scala" % "1.17.37",
       "org.scalatestplus" %% "mockito-5-12" % "3.2.19.0" % Test,
-      "org.testcontainers" % "mongodb" % "1.20.0",
+      "org.testcontainers" % "testcontainers" % "1.20.0" % Test,
+      "org.testcontainers" % "mongodb" % "1.20.0" % Test
     )
   }
 }
