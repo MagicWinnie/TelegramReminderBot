@@ -1,25 +1,22 @@
 package com.magicwinnie.reminder
 
-import cats.effect.{ExitCode, IO, IOApp, Resource}
+import cats.effect._
 import com.magicwinnie.reminder.db.{MongoDBClient, ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.notifier.Notifier
 
 object MainNotifier extends IOApp {
+
   def run(args: List[String]): IO[ExitCode] = {
     args match {
       case List(token, mongoUri) =>
         val mongoClient = new MongoDBClient(mongoUri)
-        val program = for {
-          collection <- Resource.eval(mongoClient.getCollection[ReminderModel]("reminders"))
-          repository = new ReminderRepository[IO](collection)
+        for {
+          repository <- mongoClient.getCollection[ReminderModel]("reminders").flatMap { collection =>
+            ReminderRepository.make[IO](collection)
+          }
           notifier = new Notifier[IO](token, repository)
-          _ <- Resource.eval(notifier.start())
+          _ <- notifier.start().as(ExitCode.Success)
         } yield ExitCode.Success
-
-        program.use(_ => IO.never).as(ExitCode.Success).handleErrorWith { e =>
-          IO.println(s"Error starting notifier: ${e.getMessage}").as(ExitCode.Error)
-        }
-
       case _ =>
         IO.println("Usage: MainNotifier $botToken $mongoURI").as(ExitCode.Error)
     }
