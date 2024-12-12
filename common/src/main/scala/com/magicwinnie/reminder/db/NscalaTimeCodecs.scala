@@ -6,7 +6,6 @@ import org.bson.{BsonReader, BsonWriter}
 
 object NscalaTimeCodecs {
 
-  // Codec for DateTime
   implicit val dateTimeCodec: Codec[DateTime] = new Codec[DateTime] {
     override def encode(writer: BsonWriter, value: DateTime, encoderContext: EncoderContext): Unit =
       writer.writeDateTime(value.getMillis)
@@ -17,7 +16,6 @@ object NscalaTimeCodecs {
     override def getEncoderClass: Class[DateTime] = classOf[DateTime]
   }
 
-  // Codec for Period
   implicit val periodCodec: Codec[Period] = new Codec[Period] {
     override def encode(writer: BsonWriter, value: Period, encoderContext: EncoderContext): Unit =
       writer.writeString(value.toString)
