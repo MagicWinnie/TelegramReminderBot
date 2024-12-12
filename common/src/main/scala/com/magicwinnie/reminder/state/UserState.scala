@@ -2,31 +2,28 @@ package com.magicwinnie.reminder.state
 
 import com.github.nscala_time.time.Imports.DateTime
 
+/** Represents the different states of user interaction during reminder creation process. */
 sealed trait UserState
 
-/** Объект UserState определяет состояния пользователя в системе, а также связанные с ними данные, до записи их в базу
-  * данных.
-  */
 object UserState {
 
-  /** Представляет собой состояние пользователя, в котором мы находимся в ожидании от него названия напоминания.
+  /** Initial state when user starts creating a reminder. Waiting for the reminder name to be entered.
     */
   case object AwaitingName extends UserState
 
-  /** Представляет собой состояние пользователя, в котором мы находимся в ожидании от него времени напоминания.
+  /** State after name is provided, waiting for the reminder date.
     *
     * @param name
-    *   Уже полученное название напоминания
+    *   The name of the reminder previously entered
     */
   case class AwaitingDate(name: String) extends UserState
 
-  /** Представляет собой состояние пользователя, в котором мы находимся в ожидании от него количества дней, через
-    * которое нужно повторить напоминание.
+  /** State after date is set, waiting for repeat interval configuration.
     *
     * @param name
-    *   Уже полученное название напоминания
+    *   The name of the reminder
     * @param executeAt
-    *   Уже полученный объект DateTime, указывающий время напоминания.
+    *   The scheduled date and time for the reminder
     */
   case class AwaitingRepeat(name: String, executeAt: DateTime) extends UserState
 }

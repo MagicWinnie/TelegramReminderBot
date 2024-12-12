@@ -4,54 +4,53 @@ import cats.effect.{Concurrent, Ref}
 import cats.syntax.all._
 import com.bot4s.telegram.models.Message
 
-/** Трейт для управления состоянием чата.
+/** Manages per-chat state for stateful interactions.
+  *
+  * Provides methods to set, clear, and retrieve state associated with specific chat contexts.
   *
   * @tparam F
-  *   эффект, используемый для асинхронного или другого управления потоками данных.
+  *   Type of effect context
   * @tparam S
-  *   тип данных, представляющий состояние чата.
+  *   Type of state being managed
   */
 trait PerChatState[F[_], S] {
 
-  /** Устанавливает новое состояние для текущего чата.
+  /** Sets the state for a specific chat.
     *
     * @param value
-    *   новое состояние чата, которое нужно установить.
+    *   The state to be set
     * @param msg
-    *   объект сообщения, содержащий контекст выполнения.
-    * @return
-    *   возвращает эффект типа F[Unit], сигнализирующий об успешном завершении операции.
+    *   The Telegram message providing chat context
     */
   def setChatState(value: S)(implicit msg: Message): F[Unit]
 
-  /** Сбрасывает состояние чата, связанного с переданным сообщением.
+  /** Clears the state for a specific chat.
     *
     * @param msg
-    *   сообщение, на основе которого идентифицируется чат
-    * @return
-    *   эффект, представляющий выполнение операции очистки состояния чата
+    *   The Telegram message providing chat context
     */
   def clearChatState(implicit msg: Message): F[Unit]
 
-  /** Метод применяется для работы с состоянием чата.
+  /** Performs an action with the current chat state.
     *
     * @param action
-    *   функция, принимающая текущее состояние чата (опционально) и возвращающая эффект типа F[Unit].
+    *   A function that takes the current state and performs an effect
     * @param msg
-    *   текущее сообщение, которое необходимо для выполнения действия.
-    * @return
-    *   результат выполнения эффекта F[Unit].
+    *   The Telegram message providing chat context
     */
   def withChatState(action: Option[S] => F[Unit])(implicit msg: Message): F[Unit]
 }
 
 object PerChatState {
 
-  /** Создает экземпляр `PerChatState[F, S]` для управления состоянием чата.
+  /** Creates a new PerChatState instance with concurrent state management.
     *
+    * @tparam F
+    *   Type of effect context
+    * @tparam S
+    *   Type of state being managed
     * @return
-    *   Функциональный эффект, возвращающий экземпляр `PerChatState[F, S]`, который реализует методы для задания,
-    *   очистки и работы с состоянием чата.
+    *   A PerChatState instance wrapped in an effect
     */
   def create[F[_]: Concurrent, S]: F[PerChatState[F, S]] =
     Ref.of[F, Map[Long, S]](Map.empty).map { ref =>
@@ -66,4 +65,5 @@ object PerChatState {
           ref.get.map(_.get(msg.chat.id)).flatMap(action)
       }
     }
+
 }
