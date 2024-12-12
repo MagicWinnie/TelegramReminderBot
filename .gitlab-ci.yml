@@ -18,7 +18,6 @@ before_script:
   - apt-get install -y docker.io
   - sbt clean update
 
-
 build:
   stage: build
   script:
