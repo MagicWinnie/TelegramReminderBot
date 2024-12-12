@@ -4,8 +4,19 @@ import cats.effect._
 import com.magicwinnie.reminder.db.{MongoDBClient, ReminderModel, ReminderRepository}
 import com.magicwinnie.reminder.notifier.Notifier
 
+/** Main entry point for the Reminder Notification Service.
+  *
+  * Initializes the notifier with a Telegram bot token and MongoDB connection.
+  */
 object MainNotifier extends IOApp {
 
+  /** Configures and starts the reminder notification service.
+    *
+    * @param args
+    *   Command-line arguments (Telegram bot token, MongoDB URI)
+    * @return
+    *   IO effect representing the application's exit status
+    */
   def run(args: List[String]): IO[ExitCode] = {
     args match {
       case List(token, mongoUri) =>

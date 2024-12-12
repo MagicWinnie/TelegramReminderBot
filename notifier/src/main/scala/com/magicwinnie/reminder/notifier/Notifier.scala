@@ -13,12 +13,26 @@ import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.concurrent.duration._
 
+/** Manages reminder notifications for a Telegram bot.
+  *
+  * Periodically checks for due reminders and sends notifications to the appropriate chat, with support for recurring
+  * reminders.
+  *
+  * @param token
+  *   Telegram bot token
+  * @param reminderRepository
+  *   Repository for managing reminder data in MongoDB
+  */
 class Notifier[F[_]: Async](
   token: String,
   reminderRepository: ReminderRepository[F]
 ) extends TelegramBot[F](token, AsyncHttpClientCatsBackend.usingClient[F](asyncHttpClient()))
   with StrictLogging {
 
+  /** Continuously processes and sends due reminders.
+    *
+    * Retrieves due reminders, sends Telegram messages, and handles reminder repetition or deletion.
+    */
   private def processReminders(): F[Unit] = {
     def loop: F[Unit] = {
       for {
@@ -51,6 +65,13 @@ class Notifier[F[_]: Async](
     }
   }
 
+  /** Manages the reminder after notification.
+    *
+    * Updates recurring reminders with a new execution time, or deletes non-recurring reminders.
+    *
+    * @param reminder
+    *   The reminder to process after notification
+    */
   private def handleRepeat(reminder: ReminderModel): F[Unit] = {
     reminder.repeatIn match {
       case Some(period) =>
@@ -61,6 +82,7 @@ class Notifier[F[_]: Async](
     }
   }
 
+  /** Initiates the reminder notification process. */
   def start(): F[Unit] = {
     logger.info("Notifier has started processing reminders")
     processReminders()

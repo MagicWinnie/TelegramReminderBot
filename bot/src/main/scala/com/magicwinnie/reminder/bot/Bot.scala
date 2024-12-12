@@ -22,7 +22,7 @@ import scala.util.{Failure, Success, Try}
   * @param perChatState
   *   Manages user states for different chat sessions
   * @param reminderRepository
-  *   Handles database operations for reminder storage
+  *   Repository for managing reminder data in MongoDB
   * @tparam F
   *   Effect type for asynchronous operations
   */
@@ -412,13 +412,13 @@ class Bot[F[_]: Async](
     }
   }
 
-  /** Begins polling for the Telegram Bot and logs the start. */
+  /** Begins polling for the Telegram Bot. */
   override def startPolling(): F[Unit] = {
     logger.info("Telegram Bot has started polling ")
     super.startPolling()
   }
 
-  /** Stops the Telegram Bot and logs the shutdown. */
+  /** Stops the Telegram Bot. */
   override def shutdown(): Unit = {
     logger.info("Telegram Bot has stopped")
     super.shutdown()
