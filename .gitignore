@@ -1,11 +1,13 @@
-target
 *.iml
+
+.DS_Store
+.env
+metals.sbt
+
+target
 .idea
 .metals/
 .vscode/
 .history/
 .bloop/
-metals.sbt
-.DS_Store
 .bsp/
-.env
