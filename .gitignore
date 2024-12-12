@@ -1,0 +1,13 @@
+*.iml
+
+.DS_Store
+.env
+metals.sbt
+
+target
+.idea
+.metals/
+.vscode/
+.history/
+.bloop/
+.bsp/
