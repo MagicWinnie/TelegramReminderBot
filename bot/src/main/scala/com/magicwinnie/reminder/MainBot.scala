@@ -22,4 +22,5 @@ object MainBot extends IOApp {
         IO.println("Usage: MainBot $botToken $mongoURI").as(ExitCode.Error)
     }
   }
+
 }

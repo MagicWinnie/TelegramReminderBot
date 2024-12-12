@@ -21,4 +21,5 @@ object MainNotifier extends IOApp {
         IO.println("Usage: MainNotifier $botToken $mongoURI").as(ExitCode.Error)
     }
   }
+
 }
