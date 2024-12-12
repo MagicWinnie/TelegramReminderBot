@@ -21,5 +21,7 @@ build:
 
 test:
   stage: test
+  services:
+    - docker:dind
   script:
     - sbt test
