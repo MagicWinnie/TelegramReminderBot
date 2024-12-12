@@ -7,32 +7,40 @@ import org.mongodb.scala.{MongoClient, MongoCollection}
 
 import scala.reflect.ClassTag
 
-/** Класс для работы с MongoDB.
+/** Manages MongoDB connection and collection access.
   *
   * @param uri
-  *   ссылка для подключения к MongoDB.
+  *   Connection string for the MongoDB database
   */
 class MongoDBClient(val uri: String) {
+
   private val client = MongoClient(uri)
 
-  // Регистрация кодеков для сериализации и десериализации объектов DateTime и Period при работе с MongoDB
+  /** Configures codec registry to support custom type serialization.
+    *
+    * Includes codecs for DateTime and Period, and provides serialization for ReminderModel.
+    */
   private val codecRegistry = fromRegistries(
     fromCodecs(NscalaTimeCodecs.dateTimeCodec, NscalaTimeCodecs.periodCodec),
     fromProviders(classOf[ReminderModel]),
     MongoClient.DEFAULT_CODEC_REGISTRY
   )
 
+  /** Initializes the database connection with the configured codec registry.
+    *
+    * Uses a fixed database name "reminder_bot" for the application.
+    */
   private val database: IO[org.mongodb.scala.MongoDatabase] =
     IO(client.getDatabase("reminder_bot").withCodecRegistry(codecRegistry))
 
-  /** Метод для получения коллекции из базы данных MongoDB.
+  /** Retrieves a specific collection from the database.
     *
-    * @param name
-    *   имя коллекции, которую необходимо получить
     * @tparam T
-    *   модель документа
+    *   The type of documents in the collection
+    * @param name
+    *   The name of the collection to retrieve
     * @return
-    *   экземпляр класса IO, содержащий MongoCollection заданного типа
+    *   An IO effect containing the requested MongoDB collection
     */
   def getCollection[T: ClassTag](name: String): IO[MongoCollection[T]] =
     database.map(_.getCollection[T](name))
