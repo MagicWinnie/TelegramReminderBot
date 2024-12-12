@@ -5,9 +5,9 @@ import org.mongodb.scala.bson.ObjectId
 
 case class ReminderModel(
   _id: ObjectId = new ObjectId(),
-  chatId: Long, // ID Telegram чата пользователя
-  name: String, // Название напоминания
-  executeAt: DateTime, // Время напоминания
-  repeatIn: Option[Period], // Период повторения напоминания, None в случае одноразового напоминания
-  timezoneID: String // Joda ID часового пояса
+  chatId: Long, // User Telegram ID
+  name: String, // Reminder name
+  executeAt: DateTime, // Reminder datetime
+  repeatIn: Option[Period], // Reminder repeat interval, None in case of a once time one
+  timezoneID: String // Timezone Joda ID
 )
