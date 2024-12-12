@@ -28,7 +28,7 @@ class ReminderRepositorySpec extends AnyFlatSpec with Matchers with BeforeAndAft
     container.stop()
   }
 
-  "ReminderRepository" should "create and delete a reminder" in {
+  "ReminderRepository" should "create, read, update, and delete a reminder" in {
     val reminder = ReminderModel(
       chatId = 12345L,
       name = "Test",
@@ -41,6 +41,18 @@ class ReminderRepositorySpec extends AnyFlatSpec with Matchers with BeforeAndAft
 
     val reminders = repository.getRemindersForChat(12345L).unsafeRunSync()
     reminders.size shouldBe 1
+
+    val remindersToExecute = repository.getRemindersToExecute(DateTime.now(DateTimeZone.UTC)).unsafeRunSync()
+    remindersToExecute.size shouldBe 1
+
+    repository.updateReminder(reminder.copy(executeAt = DateTime.now(DateTimeZone.UTC))).unsafeRunSync()
+
+    val remindersAfterUpdate = repository.getRemindersToExecute(DateTime.now(DateTimeZone.UTC)).unsafeRunSync()
+    remindersAfterUpdate.size shouldBe 1
+
+    val remindersNotExisting =
+      repository.getRemindersToExecute(DateTime.now(DateTimeZone.UTC).minus(3600000L)).unsafeRunSync()
+    remindersNotExisting.size shouldBe 0
 
     repository.deleteReminder(reminders.head._id).unsafeRunSync()
 
