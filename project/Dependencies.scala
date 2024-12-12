@@ -20,9 +20,8 @@ object Dependencies {
     lazy val all: Seq[ModuleID] = Seq(
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "org.mockito" %% "mockito-scala" % "1.17.37",
-      "org.scalatestplus" %% "mockito-5-12" % "3.2.19.0" % Test
-//      "org.typelevel" %% "cats-laws" % "2.12.0" % Test,
-//      "org.typelevel" %% "discipline-scalatest" % "2.3.0" % Test,
+      "org.scalatestplus" %% "mockito-5-12" % "3.2.19.0" % Test,
+      "org.testcontainers" % "mongodb" % "1.20.0",
     )
   }
 }
