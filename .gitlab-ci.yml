@@ -8,6 +8,9 @@ stages:
   - build
   - test
 
+tags:
+  - dind
+
 variables:
   SBT_OPTS: "-Xmx1G"
   DOCKER_HOST: "tcp://docker:2375"
@@ -23,5 +26,3 @@ test:
   stage: test
   script:
     - sbt test
-  tags:
-    - dind
