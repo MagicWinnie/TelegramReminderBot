@@ -1,9 +1,8 @@
 package com.magicwinnie.reminder.db
 
-import com.github.nscala_time.time.Imports.{DateTime, Period}
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone, Period}
 import org.bson.codecs.{DecoderContext, EncoderContext}
 import org.bson.{BsonReader, BsonWriter}
-import org.joda.time.DateTimeZone
 import org.mockito.Mockito.{mock, verify, when}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

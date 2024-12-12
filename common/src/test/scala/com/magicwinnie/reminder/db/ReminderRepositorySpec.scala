@@ -2,8 +2,7 @@ package com.magicwinnie.reminder.db
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import com.github.nscala_time.time.Imports.DateTime
-import org.joda.time.DateTimeZone
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

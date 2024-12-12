@@ -1,7 +1,6 @@
 package com.magicwinnie.reminder.db
 
-import com.github.nscala_time.time.Imports.{DateTime, Period}
-import org.joda.time.DateTimeZone
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone, Period}
 import org.mongodb.scala.bson.ObjectId
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
