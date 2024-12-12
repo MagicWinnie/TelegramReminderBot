@@ -14,7 +14,7 @@ import org.bson.types.ObjectId
 import org.joda.time.DateTimeZone
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class Bot[F[_]: Async](
   token: String,
@@ -25,7 +25,6 @@ class Bot[F[_]: Async](
   with Commands[F]
   with Callbacks[F] {
 
-  // Define bot commands
   onCommand("start") { implicit msg =>
     reply(
       "Привет!\n" +
@@ -316,14 +315,13 @@ class Bot[F[_]: Async](
   }
 
   private def parseRepeatInterval(daysStr: String): Either[String, Period] = {
-    Either
-      .catchOnly[NumberFormatException](daysStr.toInt)
-      .left
-      .map(_ => "Введи корректное число дней")
-      .flatMap { days =>
+    Try(daysStr.toInt) match {
+      case Success(days) =>
         if (days >= 0) Right(Period.days(days))
         else Left("Число должно быть положительным")
-      }
+      case Failure(_) =>
+        Left("Введи корректное число дней")
+    }
   }
 
   override def startPolling(): F[Unit] = {
